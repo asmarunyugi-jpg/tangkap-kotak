@@ -1,0 +1,3454 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>Game 2D Tangkap Kotak - Real Global Edition</title>
+    <!-- Firebase SDK (v9 Compatibility Mode untuk Web) -->
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
+    <!-- PeerJS CDN untuk Multiplayer Online -->
+    <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        html, body { 
+            width: 100%;
+            height: 100%;
+            overflow: hidden; 
+            background: #1e1e24; 
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            color: #fff;
+        }
+        
+        #game-container {
+            position: relative;
+            width: 100vw;
+            height: 100vh;
+        }
+        
+        canvas { 
+            background: #2b2d42; 
+            touch-action: none;
+            width: 100%;
+            height: 100%;
+            display: block;
+        }
+        
+        #scoreboard {
+            position: absolute;
+            top: 16px;
+            left: 16px;
+            background: rgba(0, 0, 0, 0.65);
+            padding: 10px 16px;
+            border-radius: 10px;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            font-size: 14px;
+            font-weight: bold;
+            z-index: 5;
+            pointer-events: none;
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+            backdrop-filter: blur(4px);
+        }
+        .user-val { color: #4cc9f0; font-size: 12px; margin-bottom: 2px; }
+        .score-val { color: #06d6a0; }
+        .highscore-val { color: #ffd166; }
+        .coin-val { color: #ffb703; }
+        .online-status { color: #ff476f; font-size: 11px; margin-top: 2px; }
+        .opponent-score { color: #ff8fa3; }
+        #match-countdown {
+            position:absolute; inset:0; display:none; align-items:center; justify-content:center;
+            flex-direction:column; background:rgba(0,0,0,.72); z-index:8; text-align:center;
+            font-weight:800; text-shadow:0 3px 14px #000;
+        }
+        #countdown-number { font-size:clamp(64px,18vw,120px); color:#ffd166; line-height:1.1; }
+        #countdown-message { font-size:clamp(16px,4vw,24px); color:#fff; padding:0 18px; }
+
+        .overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(30, 30, 36, 0.95);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            gap: 12px;
+            z-index: 10;
+            padding: 20px;
+        }
+        .hidden { display: none !important; }
+        h1 { font-size: 28px; color: #1db954; text-shadow: 0 2px 4px rgba(0,0,0,0.5); }
+        h2 { font-size: 20px; color: #ffd166; margin-bottom: 5px; }
+
+        .coin-badge {
+            background: rgba(255, 183, 3, 0.15);
+            border: 1px solid #ffb703;
+            color: #ffb703;
+            padding: 8px 20px;
+            border-radius: 20px;
+            font-size: 15px;
+            font-weight: bold;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            box-shadow: 0 0 10px rgba(255, 183, 3, 0.2);
+        }
+
+        .btn {
+            background: #ef476f;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            font-size: 16px;
+            font-weight: bold;
+            border-radius: 25px;
+            cursor: pointer;
+            box-shadow: 0 4px 10px rgba(239, 71, 111, 0.4);
+            transition: transform 0.2s, background 0.2s;
+            width: 220px;
+            text-align: center;
+        }
+        .btn:hover { background: #d9385d; transform: scale(1.05); }
+        .btn-online { background: #7209b7; color: #fff; box-shadow: 0 4px 10px rgba(114, 9, 183, 0.4); }
+        .btn-leaderboard { background: #ffd166; color: #1e1e24; box-shadow: 0 4px 10px rgba(255, 209, 102, 0.4); }
+        .btn-shop { background: #ffb703; color: #1e1e24; box-shadow: 0 4px 10px rgba(255, 183, 3, 0.4); }
+        .btn-secondary { background: #118ab2; box-shadow: 0 4px 10px rgba(17, 138, 178, 0.4); }
+        .btn-register { background: #06d6a0; color: #1e1e24; box-shadow: 0 4px 10px rgba(6, 214, 160, 0.4); }
+        .btn-logout { background: #e63946; box-shadow: 0 4px 10px rgba(230, 57, 70, 0.4); }
+
+        .auth-btn-group {
+            display: flex;
+            gap: 10px;
+            width: min(80%, 300px);
+        }
+        .auth-btn-group .btn {
+            flex: 1;
+            width: auto;
+            padding: 10px;
+            font-size: 14px;
+        }
+
+        .input-box {
+            width: min(80%, 300px);
+            padding: 12px;
+            border-radius: 8px;
+            border: 1px solid #4cc9f0;
+            background: #2b2d42;
+            color: #fff;
+            font-size: 14px;
+            text-align: center;
+            outline: none;
+        }
+
+        .setting-box {
+            background: #2b2d42;
+            padding: 16px;
+            border-radius: 10px;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            align-items: center;
+            width: min(90%, 350px);
+        }
+        .setting-box label { font-size: 14px; color: #8d99ae; text-align: center; }
+
+        .select-box {
+            width: 100%;
+            padding: 10px;
+            border-radius: 6px;
+            border: 1px solid #ffb703;
+            background: #1e1e24;
+            color: #ffd166;
+            font-size: 14px;
+            font-weight: bold;
+            text-align: center;
+            outline: none;
+            cursor: pointer;
+        }
+
+        .leaderboard-table {
+            width: min(90vw, 400px);
+            max-height: 300px;
+            overflow-y: auto;
+            border-collapse: collapse;
+            background: #2b2d42;
+            border-radius: 8px;
+        }
+        .leaderboard-table th, .leaderboard-table td {
+            padding: 10px 14px;
+            text-align: left;
+            font-size: 14px;
+        }
+        .leaderboard-table th {
+            background: #118ab2;
+            color: #fff;
+            position: sticky;
+            top: 0;
+        }
+        .leaderboard-table tr:nth-child(even) { background: rgba(255,255,255,0.05); }
+
+        .shop-container {
+            width: min(95vw, 480px);
+            max-height: 60vh;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            padding-right: 6px;
+        }
+        .shop-section-title {
+            font-size: 13px;
+            color: #4cc9f0;
+            border-bottom: 1px solid rgba(255,255,255,0.1);
+            padding-bottom: 4px;
+            text-align: left;
+            width: 100%;
+        }
+        .shop-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
+            gap: 10px;
+            width: 100%;
+        }
+        .shop-card {
+            background: #2b2d42;
+            border: 2px solid #3d405b;
+            border-radius: 8px;
+            padding: 10px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 6px;
+        }
+        .shop-card.active { border-color: #06d6a0; }
+        .skin-preview { width: 50px; height: 12px; border-radius: 4px; }
+        .skin-preview.target-preview {
+            width: 32px;
+            height: 32px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-size: 14px;
+            border-radius: 50%;
+        }
+        .skin-preview.bg-preview {
+            width: 70px;
+            height: 35px;
+            border-radius: 4px;
+            border: 1px solid #fff;
+        }
+
+        .preview-rainbow { background: linear-gradient(90deg, red, orange, yellow, green, blue, indigo, violet); }
+        .preview-fire-red { background: linear-gradient(180deg, #ff4500, #ff7300, #ffae00); box-shadow: 0 0 8px #ff4500; }
+        .preview-fire-blue { background: linear-gradient(180deg, #00f0ff, #0077ff, #0026ff); box-shadow: 0 0 8px #00f0ff; }
+        .preview-love { background: #ff4d6d; box-shadow: 0 0 8px #ff758f; }
+        .preview-electric { background: #e0aaff; box-shadow: 0 0 10px #7b2cbf, 0 0 15px #3c096c; }
+        .preview-meteor { background: #5c4d4d; border-radius: 50%; border: 2px solid #ff5500; box-shadow: 0 0 10px #ff2200; }
+        .preview-freeform-crystal { background: radial-gradient(circle, #00f5d4, #7209b7); border-radius: 30%; box-shadow: 0 0 10px #00f5d4; }
+
+        .preview-lightning-yellow { background: #ffea00; color: #1e1e24; box-shadow: 0 0 12px #ffea00, 0 0 20px #ffaa00; font-size: 18px !important; }
+        .preview-lightning-blue { background: #00f0ff; color: #1e1e24; box-shadow: 0 0 12px #00f0ff, 0 0 20px #0077ff; font-size: 18px !important; }
+        .preview-diamond-sword { background: transparent; box-shadow: 0 0 12px #00f5d4; }
+
+        .preview-planet-mercury { background: radial-gradient(circle, #a8a29e, #57534e); box-shadow: 0 0 6px #a8a29e; }
+        .preview-planet-venus { background: radial-gradient(circle, #fde047, #ca8a04); box-shadow: 0 0 8px #fde047; }
+        .preview-planet-earth { background: radial-gradient(circle, #38bdf8, #1d4ed8); box-shadow: 0 0 8px #38bdf8; }
+        .preview-planet-mars { background: radial-gradient(circle, #ef4444, #991b1b); box-shadow: 0 0 8px #ef4444; }
+        .preview-planet-jupiter { background: radial-gradient(circle, #f97316, #7c2d12); box-shadow: 0 0 8px #f97316; }
+        .preview-planet-saturn { background: radial-gradient(circle, #fde047, #a16207); box-shadow: 0 0 8px #fde047; }
+        .preview-planet-uranus { background: radial-gradient(circle, #22d3ee, #0891b2); box-shadow: 0 0 8px #22d3ee; }
+        .preview-planet-neptune { background: radial-gradient(circle, #3b82f6, #1e3a8a); box-shadow: 0 0 8px #3b82f6; }
+
+        .preview-bg-default { background: #2b2d42; }
+        .preview-bg-hutan { background: linear-gradient(180deg, #132a13, #31572c); }
+        .preview-bg-perumahan { background: linear-gradient(180deg, #ff9e00, #9d4edd); }
+        .preview-bg-laut { background: linear-gradient(180deg, #03045e, #0077b6); }
+        .preview-bg-neraka { background: linear-gradient(180deg, #370617, #6a040f); }
+        .preview-bg-galaxy { background: radial-gradient(circle, #3a0ca3, #03071e); }
+
+        .shop-card-name { font-size: 11px; font-weight: bold; text-align: center; }
+        .btn-buy {
+            padding: 5px 10px;
+            font-size: 11px;
+            border-radius: 12px;
+            width: 100%;
+            border: none;
+            cursor: pointer;
+            font-weight: bold;
+        }
+        .btn-buy.owned { background: #118ab2; color: #fff; }
+        .btn-buy.equip { background: #06d6a0; color: #1e1e24; }
+        .btn-buy.purchase { background: #ffb703; color: #1e1e24; }
+        .btn-buy.disabled { background: #6c757d; color: #fff; cursor: not-allowed; }
+
+        .room-box {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            align-items: center;
+            background: rgba(255, 255, 255, 0.05);
+            padding: 15px;
+            border-radius: 10px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            width: min(90%, 320px);
+        }
+
+        .music-selector-box {
+            width: min(85%, 260px);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 4px;
+            margin-bottom: 5px;
+        }
+        .music-selector-box label {
+            font-size: 12px;
+            color: #4cc9f0;
+            font-weight: bold;
+        }
+    
+    /* Penampil FPS ringan */
+    #fps-monitor {
+        position: fixed; top: 10px; right: 10px; z-index: 99999;
+        padding: 6px 9px; border-radius: 7px;
+        background: rgba(0, 0, 0, .78); color: #63ff91;
+        border: 1px solid rgba(99, 255, 145, .55);
+        font: 700 12px/1.3 monospace; letter-spacing: .3px;
+        pointer-events: none; user-select: none;
+        box-shadow: 0 0 8px rgba(0,0,0,.25);
+    }
+    #fps-monitor.medium { color: #ffd166; border-color: rgba(255,209,102,.6); }
+    #fps-monitor.low { color: #ff6868; border-color: rgba(255,104,104,.7); }
+
+
+        .spin-panel { width: min(94vw, 430px); max-height: 88vh; overflow-y: auto; padding: 18px; border: 1px solid rgba(76,201,240,.55); border-radius: 18px; background: radial-gradient(circle at top, rgba(17,138,178,.22), rgba(20,20,32,.98) 65%); box-shadow: 0 0 24px rgba(76,201,240,.15); text-align: center; }
+        .spin-wheel-wrap { position:relative; width:170px; height:176px; margin:8px auto 8px; padding-top:12px; box-sizing:border-box; }
+        .spin-pointer { position:absolute; z-index:3; top:0; left:50%; transform:translateX(-50%); width:0; height:0; border-left:12px solid transparent; border-right:12px solid transparent; border-top:25px solid #fff; filter:drop-shadow(0 0 5px rgba(255,209,102,.9)); }
+        .spin-wheel { width: 150px; height: 150px; margin: 0 auto 14px; border-radius: 50%; border: 5px solid #ffd166; background: conic-gradient(#ffb703 0 20%, #118ab2 20% 40%, #7209b7 40% 60%, #ffd166 60% 80%, #00f0ff 80% 100%); box-shadow: 0 0 18px rgba(255,209,102,.3), inset 0 0 0 5px rgba(0,0,0,.28); display:flex; align-items:center; justify-content:center; position:relative; }
+        .spin-wheel:after { content:'★'; display:flex; align-items:center; justify-content:center; width:42px; height:42px; border-radius:50%; background:#20202b; border:3px solid #fff; color:#ffd166; font-size:21px; position:absolute; z-index:2; }
+        .spin-item { position:absolute; z-index:1; display:flex; align-items:center; justify-content:center; width:43px; height:24px; border-radius:7px; background:rgba(20,20,32,.88); border:1px solid rgba(255,255,255,.9); box-shadow:0 1px 5px #0008; color:#fff; font-size:10px; font-weight:800; line-height:1; transform:translate(-50%,-50%); white-space:nowrap; }
+        .spin-item-20 { left:75%; top:30%; }
+        .spin-item-50 { left:83%; top:60%; }
+        .spin-item-100 { left:50%; top:79%; }
+        .spin-item-yellow { left:17%; top:60%; }
+        .spin-item-blue { left:25%; top:30%; }
+        /* Teks peluang tetap menempel pada segmen warna dan ikut berputar bersama roda. */
+        .spin-wheel.spinning { animation: spinWheel 3.5s cubic-bezier(.12,.7,.12,1) 1 forwards; }
+        @keyframes spinWheel { from { transform:rotate(0deg); } to { transform:rotate(var(--spin-target, 1440deg)); } }
+        .spin-prizes { font-size:12px; line-height:1.7; color:#e9ecef; background:rgba(0,0,0,.22); border-radius:10px; padding:8px; width:100%; margin:6px 0; }
+        #spin-result { min-height:42px; font-weight:700; color:#ffd166; padding:8px 2px; }
+        #spin-button:disabled { opacity:.55; cursor:wait; transform:none; }
+    </style>
+</head>
+<body>
+    <div id="fps-monitor" aria-label="Penampil frame per detik">FPS: --</div>
+
+    <div id="game-container">
+        <div id="scoreboard">
+            <div id="user-display" class="user-val">Pemain: Guest</div>
+            <div>SKOR KAMU: <span id="score" class="score-val">0</span></div>
+            <div id="opponent-score-row" style="display:none;">SKOR LAWAN: <span id="opponent-score" class="opponent-score">0</span></div>
+            <div>TERTINGGI: <span id="highscore" class="highscore-val">0</span></div>
+            <div>KOIN: <span id="coins-game" class="coin-val">🪙 0</span></div>
+            <div id="online-status" class="online-status">Mode: Solo Global</div>
+        </div>
+
+        <div id="account-menu" class="overlay">
+            <h2>Masukan Akun Kamu 🌍</h2>
+            <p style="font-size: 12px; color: #8d99ae; margin-bottom: 5px;">Akun tersimpan di Cloud Database Global</p>
+            <input type="text" id="username-input" class="input-box" placeholder="Ketik Nama / Username..." maxlength="12" />
+            <input type="password" id="password-input" class="input-box" placeholder="Ketik Kata Sandi..." maxlength="20" />
+            
+            <div class="auth-btn-group">
+                <button class="btn btn-secondary" onclick="loginUser()">MASUK</button>
+                <button class="btn btn-register" onclick="registerUser()">DAFTAR</button>
+            </div>
+        </div>
+
+        <div id="main-menu" class="overlay hidden">
+            <h1>Tangkap Kotak</h1>
+            
+            <div class="coin-badge">
+                <span>🪙 KOIN:</span>
+                <span class="coins-display">0</span>
+            </div>
+
+            <div class="music-selector-box">
+                <label for="main-bgm-select">🎵 Musik Latar (BGM):</label>
+                <select id="main-bgm-select" class="select-box" onchange="changeBgm(this.value)">
+                    <option value="off">Matikan Musik 🔇</option>
+                    <option value="synth_tune">Melodi Synthesizer 🎵</option>
+                    <option value="beranjak_dewasa">Beranjak Dewasa - Nadin Amizah 🎧</option>
+                    <option value="dunia_yang_nanti">Dunia Yang Nanti 🎧</option>
+                    <option value="menari_nari">Menari-nari 💃</option>
+                </select>
+            </div>
+
+            <button class="btn" onclick="startGame('solo')">MAIN SOLO</button>
+            <button class="btn btn-online" onclick="openOnlineLobby()">MAIN ONLINE 🌐</button>
+            <button class="btn btn-shop" onclick="openShop()">TOKO SKIN</button>
+            <button class="btn" style="background:#7209b7;" onclick="openSpin()">🎰 SPIN HADIAH</button>
+            <button class="btn btn-leaderboard" onclick="openLeaderboard()">LEADERBOARD GLOBAL 🌍</button>
+            <button class="btn btn-secondary" onclick="openSettings()">SETTING</button>
+            <button class="btn btn-logout" onclick="logoutUser()">LOGOUT 🚪</button>
+        </div>
+
+        <div id="online-menu" class="overlay hidden">
+            <h2>Lobby Online Multiplayer 🌐</h2>
+            
+            <div class="room-box">
+                <span style="font-size: 13px; color: #4cc9f0;">Buat Kamar Bertarung:</span>
+                <button class="btn btn-online" style="width: 100%;" onclick="createOnlineRoom()">BUAT ROOM BARU</button>
+            </div>
+
+            <div class="room-box">
+                <span style="font-size: 13px; color: #ffd166;">Gabung Kamar Teman:</span>
+                <input type="text" id="room-code-input" class="input-box" placeholder="Masukkan Kode Room..." style="width: 100%;" />
+                <button class="btn btn-secondary" style="width: 100%;" onclick="joinOnlineRoom()">GABUNG ROOM</button>
+            </div>
+
+            <div id="host-difficulty-box" class="room-box hidden" style="width:min(100%,360px);">
+                <label for="host-difficulty-select" style="font-size:13px;color:#ffd166;">🎚️ Pilih Difficulty (khusus Host):</label>
+                <select id="host-difficulty-select" class="select-box" style="width:100%;" onchange="hostChooseDifficulty()">
+                    <option value="">-- Pilih Difficulty --</option>
+                    <option value="easy">Easy</option>
+                    <option value="normal">Normal</option>
+                    <option value="medium">Medium</option>
+                    <option value="hard">Hard</option>
+                </select>
+            </div>
+            <div id="online-info" style="font-size: 13px; color: #06d6a0; min-height: 20px; text-align: center;"></div>
+
+            <button class="btn btn-secondary" onclick="closeOnlineLobby()">KEMBALI</button>
+        </div>
+
+        <div id="shop-menu" class="overlay hidden">
+            <h2>Toko Skin</h2>
+            <div class="coin-badge" style="margin-bottom: 5px;">
+                <span>🪙 KOIN:</span>
+                <span class="coins-display">0</span>
+            </div>
+            <div style="background:rgba(17,138,178,.16);border:1px solid rgba(76,201,240,.4);border-radius:12px;padding:12px;margin:8px 0 12px;text-align:center;">
+                <div style="font-weight:bold;margin-bottom:5px;">🎟️ TIKET SPIN: <span id="shop-spin-tickets">0</span></div>
+                <div style="font-size:12px;color:#adb5bd;margin-bottom:8px;">1 tiket = 1 putaran · Harga 125 koin</div>
+                <button class="btn" style="background:#118ab2;" onclick="buySpinTicket()">🎟️ BELI 1 TIKET — 125 KOIN</button>
+            </div>
+
+            <div class="shop-container">
+                <div class="shop-section-title">SKIN PEMAIN (PADDLE)</div>
+                <div id="player-skins-grid" class="shop-grid"></div>
+
+                <div class="shop-section-title" style="margin-top: 8px;">SKIN OBJEK JATUH (EFEK & METEOR)</div>
+                <div id="target-skins-grid" class="shop-grid"></div>
+
+                <div class="shop-section-title" style="margin-top: 8px;">LIMITED EDITION ✨</div>
+                <div id="limited-skins-grid" class="shop-grid"></div>
+
+                <div class="shop-section-title" style="margin-top: 8px;">SKIN TATA SURYA (PLANET) 🪐</div>
+                <div id="planet-skins-grid" class="shop-grid"></div>
+
+                <div class="shop-section-title" style="margin-top: 8px;">BACKGROUND GAME</div>
+                <div id="bg-skins-grid" class="shop-grid"></div>
+            </div>
+
+            <button class="btn btn-secondary" onclick="closeShop()">KEMBALI</button>
+        </div>
+
+        <div id="spin-menu" class="overlay hidden">
+            <div class="spin-panel">
+                <h2>🎰 SPIN HADIAH</h2>
+                <div class="coin-badge" style="margin:0 auto 8px;">🪙 KOIN: <span id="spin-coins">0</span></div>
+                <div class="coin-badge" style="margin:0 auto 8px;">🎟️ TIKET: <span id="spin-tickets">0</span></div>
+                <div class="spin-wheel-wrap"><div class="spin-pointer" aria-hidden="true"></div><div class="spin-wheel" id="spin-wheel" aria-label="Roda hadiah dengan ikon item"><span class="spin-item spin-item-20" title="20 koin — peluang 44,2353%">44,24%</span><span class="spin-item spin-item-50" title="50 koin — peluang 33,1765%">33,18%</span><span class="spin-item spin-item-100" title="100 koin — peluang 16,5882%">16,59%</span><span class="spin-item spin-item-yellow" title="Skin Petir Kuning — peluang 3%">3%</span><span class="spin-item spin-item-blue" title="Skin Petir Biru — peluang 3%">3%</span></div></div>
+                <div id="spin-result" aria-live="polite">Putar dan dapatkan hadiah!</div>
+                <div class="spin-prizes">
+                    🪙 20 koin — peluang <b>44,2353%</b><br>
+                    🪙 50 koin — peluang <b>33,1765%</b><br>
+                    💰 100 koin — peluang <b>16,5882%</b><br>
+                    ⚡ Skin Petir Kuning — peluang <b>3%</b><br>
+                    💙 Skin Petir Biru — peluang <b>3%</b>
+                </div>
+                <p style="font-size:11px;color:#adb5bd;margin:4px 0 8px;">Ikon pada roda menunjukkan jenis hadiah di setiap segmen. Penunjuk berhenti pada hadiah yang terpilih.</p>
+                <p style="font-size:12px;color:#adb5bd;margin:4px 0 8px;">Biaya setiap putaran: 1 tiket · Beli tiket di Toko Skin seharga 125 koin.</p>
+                <button id="spin-button" class="btn" style="background:#06d6a0;color:#102a2a;" onclick="spinReward()">PUTAR — 1 TIKET</button>
+                <button class="btn btn-secondary" onclick="closeSpin()">KEMBALI</button>
+            </div>
+        </div>
+
+        <div id="leaderboard-menu" class="overlay hidden">
+            <h2>Leaderboard Global 🌍</h2>
+            <div style="width: 100%; display: flex; justify-content: center;">
+                <table class="leaderboard-table">
+                    <thead>
+                        <tr>
+                            <th>#</th>
+                            <th>Nama</th>
+                            <th>Skor</th>
+                        </tr>
+                    </thead>
+                    <tbody id="leaderboard-body"></tbody>
+                </table>
+            </div>
+            <button class="btn btn-secondary" onclick="closeLeaderboard()">KEMBALI</button>
+        </div>
+
+        <div id="settings-menu" class="overlay hidden">
+            <h1 style="color: #ffd166;">Pengaturan</h1>
+
+            <div class="setting-box">
+                <label for="difficulty-select">Level Kesulitan Game:</label>
+                <select id="difficulty-select" class="select-box" onchange="changeDifficulty()">
+                    <option value="easy">Easy (🪙 2 / Blok)</option>
+                    <option value="normal" selected>Normal (🪙 5 / Blok)</option>
+                    <option value="medium">Medium (🪙 10 / Blok)</option>
+                    <option value="hard">Hard (🪙 15 / Blok)</option>
+                </select>
+            </div>
+
+            <button class="btn btn-secondary" onclick="closeSettings()">KEMBALI</button>
+        </div>
+
+        <canvas id="gameCanvas"></canvas>
+        <div id="match-countdown"><div id="countdown-message">Pertandingan dimulai dalam...</div><div id="countdown-number">3</div></div>
+    </div>
+
+    <audio id="external-audio" loop></audio>
+
+    <script>
+        // FIREBASE GLOBAL CONFIGURATION
+        const firebaseConfig = {
+            apiKey: "AIzaSyDm3vooHb60K_3myeWBMp26tXIbpon9SZo",
+            authDomain: "reflek-game.firebaseapp.com",
+            projectId: "reflek-game",
+            storageBucket: "reflek-game.firebasestorage.app",
+            messagingSenderId: "952122314071",
+            appId: "1:952122314071:android:d5f4765fb3e3b85d3d0212"
+        };
+
+        let db = null;
+        try {
+            firebase.initializeApp(firebaseConfig);
+            db = firebase.firestore();
+            console.log("Firebase Firestore terhubung secara Global!");
+        } catch(e) {
+            console.error("Gagal menghubungkan Firebase:", e);
+        }
+
+        const canvas = document.getElementById("gameCanvas");
+        const ctx = canvas.getContext("2d");
+        const scoreEl = document.getElementById("score");
+        const highscoreEl = document.getElementById("highscore");
+        const coinsGameEl = document.getElementById("coins-game");
+        const coinsDisplays = document.querySelectorAll(".coins-display");
+        const userDisplayEl = document.getElementById("user-display");
+        const onlineStatusEl = document.getElementById("online-status");
+
+        const accountMenu = document.getElementById("account-menu");
+        const mainMenu = document.getElementById("main-menu");
+        const onlineMenu = document.getElementById("online-menu");
+        const settingsMenu = document.getElementById("settings-menu");
+        const leaderboardMenu = document.getElementById("leaderboard-menu");
+        const shopMenu = document.getElementById("shop-menu");
+
+        let currentUser = null;
+        let score = 0;
+        let highScore = 0;
+        let userCoins = 0;
+        let spinTickets = 0;
+        let sessionCoinsEarned = 0;
+        let gameOver = false;
+        let isPlaying = false;
+        let animFrameId = null;
+
+        let isOnlineMode = true;
+        let isHost = false;
+        let peer = null;
+        let conn = null;
+        let roomId = null;
+        let opponentData = { x: 0, score: 0, name: "Opponent", skin: "p_default" };
+        let opponentConnected = false;
+        let countdownActive = false;
+        let onlineMatchStarted = false;
+        let onlineRewardAppliedForMatch = false;
+        let pendingCountdownTimer = null;
+
+        const player = { width: 100, height: 18, x: 0, y: 0, color: "#06d6a0" };
+        const opponentPlayer = { width: 100, height: 18, x: 0, y: 0, color: "#ef476f" };
+        const target = { x: 0, y: 0, size: 52, speed: 3, color: "#ef476f" };
+
+        function resizeCanvas() {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+            player.y = canvas.height - 40;
+            opponentPlayer.y = canvas.height - 40;
+            player.width = Math.max(80, Math.min(140, canvas.width * 0.2));
+            opponentPlayer.width = player.width;
+        }
+        window.addEventListener("resize", resizeCanvas);
+        resizeCanvas();
+
+        const DIFFICULTY_SETTINGS = {
+            easy: { initialSpeed: 2.5, speedInc: 0.15, coinReward: 2 },
+            normal: { initialSpeed: 4.0, speedInc: 0.20, coinReward: 5 },
+            medium: { initialSpeed: 7.5, speedInc: 0.25, coinReward: 10 },
+            hard: { initialSpeed: 10.0, speedInc: 0.35, coinReward: 15 }
+        };
+        let currentDifficulty = "normal";
+
+        let solarSystemAngle = 0;
+        // Animasi warna rainbow bergerak
+        let rainbowTime = 0;
+        const PLANETS_DATA = [
+            { name: "Merkurius", color: "#a8a29e", radius: 45, speed: 0.03, size: 3 },
+            { name: "Venus", color: "#fde047", radius: 70, speed: 0.022, size: 5 },
+            { name: "Bumi", color: "#38bdf8", radius: 100, speed: 0.016, size: 6 },
+            { name: "Mars", color: "#ef4444", radius: 130, speed: 0.012, size: 4 },
+            { name: "Yupiter", color: "#f97316", radius: 170, speed: 0.008, size: 11 },
+            { name: "Saturnus", color: "#fde047", radius: 215, speed: 0.006, size: 9, hasRing: true },
+            { name: "Uranus", color: "#22d3ee", radius: 255, speed: 0.004, size: 7 },
+            { name: "Neptunus", color: "#3b82f6", radius: 290, speed: 0.003, size: 7 }
+        ];
+
+        let lavaOffset = 0;
+        let fireTime = 0;
+        let swordNeonAnimTime = 0;
+
+        let oceanTime = 0;
+        const oceanBubbles = Array.from({ length: 20 }, () => ({
+            x: Math.random() * window.innerWidth,
+            y: Math.random() * window.innerHeight,
+            size: Math.random() * 4 + 2,
+            speed: Math.random() * 1 + 0.5
+        }));
+
+        const smallFishList = Array.from({ length: 12 }, () => ({
+            x: Math.random() * window.innerWidth,
+            y: Math.random() * (window.innerHeight * 0.7) + 50,
+            speed: Math.random() * 1.5 + 0.8,
+            color: ["#ff9f1c", "#ffbf69", "#2ec4b6", "#e71d36"][Math.floor(Math.random() * 4)],
+            size: Math.random() * 4 + 6
+        }));
+
+        const oceanCreatures = {
+            blueWhale: { x: -300, y: 0, speed: 0.6, width: 220, height: 60, direction: 1 },
+            orca: { x: window.innerWidth + 200, y: 0, speed: 1.1, width: 140, height: 45, direction: -1 },
+            shark: { x: -180, y: 0, speed: 1.5, width: 120, height: 35, direction: 1 }
+        };
+
+        const cityCars = [
+            { x: -100, color: "#e63946", speed: 2.2, dir: 1, type: "sedan" },
+            { x: window.innerWidth + 100, color: "#ffb703", speed: 1.8, dir: -1, type: "suv" },
+            { x: -250, color: "#4cc9f0", speed: 2.8, dir: 1, type: "sport" }
+        ];
+
+        const PLAYER_SKINS = [
+            { id: "p_default", name: "Hijau Neon", color: "#06d6a0", price: 0, classPreview: "" },
+            { id: "p_fire_red", name: "Api Merah 🔥", type: "fire_red", price: 100, classPreview: "preview-fire-red" },
+            { id: "p_love", name: "Efek Love 💕", type: "love", price: 150, classPreview: "preview-love" },
+            { id: "p_fire_blue", name: "Api Biru 💙", type: "fire_blue", price: 200, classPreview: "preview-fire-blue" },
+            { id: "p_electric", name: "Efek Listrik ⚡", type: "electric", price: 300, classPreview: "preview-electric" },
+            { id: "p_rainbow", name: "Rainbow 🌈", type: "rainbow", price: 500, classPreview: "preview-rainbow" },
+        ];
+
+        const TARGET_SKINS = [
+            { id: "t_default", name: "Merah Standar", color: "#ef476f", price: 0, classPreview: "" },
+            { id: "t_fire_red", name: "Api Merah 🔥", type: "fire_red", price: 100, classPreview: "preview-fire-red" },
+            { id: "t_love", name: "Efek Love 💕", type: "love", price: 150, classPreview: "preview-love" },
+            { id: "t_fire_blue", name: "Api Biru 💙", type: "fire_blue", price: 200, classPreview: "preview-fire-blue" },
+            { id: "t_electric", name: "Efek Listrik ⚡", type: "electric", price: 300, classPreview: "preview-electric" },
+            { id: "t_rainbow", name: "Rainbow 🌈", type: "rainbow", price: 500, classPreview: "preview-rainbow" },
+            { id: "t_meteor", name: "Bentuk Meteor ☄️", type: "meteor", price: 600, classPreview: "preview-meteor" },
+            
+            { id: "t_lightning_yellow", name: "Petir Kuning ⚡", type: "lightning_yellow", color: "#ffea00", price: 4000, classPreview: "preview-lightning-yellow", icon: "⚡" },
+            { id: "t_lightning_blue", name: "Petir Biru ⚡", type: "lightning_blue", color: "#00f0ff", price: 4000, classPreview: "preview-lightning-blue", icon: "⚡" },
+
+            { id: "t_mercury", name: "Merkurius 🪐", type: "planet_mercury", price: 600, classPreview: "preview-planet-mercury" },
+            { id: "t_venus", name: "Venus 🪐", type: "planet_venus", price: 600, classPreview: "preview-planet-venus" },
+            { id: "t_earth", name: "Bumi 🌍", type: "planet_earth", price: 600, classPreview: "preview-planet-earth" },
+            { id: "t_mars", name: "Mars 🔴", type: "planet_mars", price: 600, classPreview: "preview-planet-mars" },
+            { id: "t_jupiter", name: "Yupiter 🪐", type: "planet_jupiter", price: 600, classPreview: "preview-planet-jupiter" },
+            { id: "t_saturn", name: "Saturnus 🪐", type: "planet_saturn", price: 600, classPreview: "preview-planet-saturn" },
+            { id: "t_uranus", name: "Uranus 🪐", type: "planet_uranus", price: 600, classPreview: "preview-planet-uranus" },
+            { id: "t_neptune", name: "Neptunus 🪐", type: "planet_neptune", price: 600, classPreview: "preview-planet-neptune" },
+        ];
+
+        const LIMITED_SKINS = [
+            { id: "t_diamond_sword", name: "Realistic Sword 🗡️", type: "diamond_sword", color: "#00f5d4", price: 10000, maxLimit: 10, classPreview: "preview-freeform-crystal" }
+        ];
+
+        const BACKGROUND_SKINS = [
+            { id: "bg_default", name: "Standar 🟦", type: "default", price: 0, classPreview: "preview-bg-default" },
+            { id: "bg_hutan", name: "Hutan 🌲", type: "hutan", price: 200, classPreview: "preview-bg-hutan" },
+            { id: "bg_perumahan", name: "Perumahan 2D 🏡", type: "perumahan", price: 300, classPreview: "preview-bg-perumahan" },
+            { id: "bg_laut", name: "Laut 🌊", type: "laut", price: 500, classPreview: "preview-bg-laut" },
+            { id: "bg_neraka", name: "Neraka 2D 🌋", type: "neraka", price: 500, classPreview: "preview-bg-neraka" },
+            { id: "bg_galaxy", name: "Galaxy 🌌", type: "galaxy", price: 600, classPreview: "preview-bg-galaxy" },
+        ];
+
+        let equippedPlayerSkin = "p_default";
+        let equippedTargetSkin = "t_default";
+        let equippedBgSkin = "bg_default";
+        let ownedSkins = ["p_default", "t_default", "bg_default"];
+        let itemPurchaseCounts = {};
+
+        let audioCtx = null;
+        let isBgmPlaying = false;
+        let bgmTimeoutId = null;
+        const externalAudio = document.getElementById("external-audio");
+
+        const SYNTH_MELODY = [
+            { note: 261.63, duration: 0.3 }, { note: 329.63, duration: 0.3 }, { note: 392.00, duration: 0.3 }, { note: 523.25, duration: 0.5 },
+            { note: 440.00, duration: 0.3 }, { note: 392.00, duration: 0.3 }, { note: 329.63, duration: 0.5 }
+        ];
+
+        function initAudio() {
+            if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            if (audioCtx.state === 'suspended') audioCtx.resume();
+        }
+
+        function playSynthNote(freq, duration) {
+            if (!audioCtx || !isBgmPlaying) return;
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+
+            osc.type = "sine";
+            osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
+
+            gain.gain.setValueAtTime(0.08, audioCtx.currentTime);
+            gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + duration - 0.05);
+
+            osc.connect(gain);
+            gain.connect(audioCtx.destination);
+
+            osc.start();
+            osc.stop(audioCtx.currentTime + duration);
+        }
+
+        function startSynthBgm(index = 0) {
+            if (!isBgmPlaying) return;
+            const item = SYNTH_MELODY[index];
+            playSynthNote(item.note, item.duration);
+
+            const nextIndex = (index + 1) % SYNTH_MELODY.length;
+            bgmTimeoutId = setTimeout(() => {
+                startSynthBgm(nextIndex);
+            }, item.duration * 1000);
+        }
+
+        function stopAllBgm() {
+            isBgmPlaying = false;
+            if (bgmTimeoutId) {
+                clearTimeout(bgmTimeoutId);
+                bgmTimeoutId = null;
+            }
+            if (externalAudio) {
+                externalAudio.pause();
+                externalAudio.currentTime = 0;
+            }
+        }
+
+        function playExternalAudio() {
+            externalAudio.load();
+            externalAudio.play().then(() => {
+                console.log("Audio berhasil diputar!");
+            }).catch(err => {
+                console.error("Gagal memutar audio:", err);
+            });
+        }
+
+        function changeBgm(value) {
+            initAudio();
+            document.getElementById("main-bgm-select").value = value;
+
+            stopAllBgm();
+
+            if (value === "synth_tune") {
+                isBgmPlaying = true;
+                startSynthBgm(0);
+            } else if (value === "beranjak_dewasa") {
+                externalAudio.src = "https://cdn.imageurlgenerator.com/uploads/b8072218-4921-41fd-a3fc-324679de7796.mp3";
+                playExternalAudio();
+            } else if (value === "dunia_yang_nanti") {
+                externalAudio.src = "https://cdn.imageurlgenerator.com/uploads/2d7427b2-56e5-4d95-ba52-7797c0b0b0a9.mp3";
+                playExternalAudio();
+            } else if (value === "menari_nari") {
+                externalAudio.src = "https://cdn.imageurlgenerator.com/uploads/1ae1fadc-27b8-4990-9710-cd7deddd13d7.mp3";
+                playExternalAudio();
+            }
+        }
+
+        function playCatchSound() {
+            if (!audioCtx) return;
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+            osc.type = "square";
+            osc.frequency.setValueAtTime(1046.50, audioCtx.currentTime);
+            osc.frequency.setValueAtTime(1567.98, audioCtx.currentTime + 0.04);
+            gain.gain.setValueAtTime(0.5, audioCtx.currentTime);
+            gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.12);
+            osc.connect(gain);
+            gain.connect(audioCtx.destination);
+            osc.start();
+            osc.stop(audioCtx.currentTime + 0.12);
+        }
+
+        function playGameOverSound() {
+            if (!audioCtx) return;
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+            osc.type = "sawtooth";
+            osc.frequency.setValueAtTime(400, audioCtx.currentTime);
+            osc.frequency.exponentialRampToValueAtTime(60, audioCtx.currentTime + 0.4);
+            gain.gain.setValueAtTime(0.6, audioCtx.currentTime);
+            gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.4);
+            osc.connect(gain);
+            gain.connect(audioCtx.destination);
+            osc.start();
+            osc.stop(audioCtx.currentTime + 0.4);
+        }
+
+        async function saveUserDataGlobal() {
+            if (!currentUser) return;
+
+            const userData = {
+                username: currentUser,
+                highScore: highScore,
+                coins: userCoins,
+                spinTickets: spinTickets,
+                ownedSkins: ownedSkins,
+                itemPurchaseCounts: itemPurchaseCounts,
+                pSkin: equippedPlayerSkin,
+                tSkin: equippedTargetSkin,
+                bgSkin: equippedBgSkin,
+                updatedAt: new Date().toISOString()
+            };
+
+            if (db) {
+                try {
+                    await db.collection("global_users").doc(currentUser.toLowerCase()).set(userData, { merge: true });
+                } catch(err) {
+                    console.error("Gagal sinkronisasi data ke cloud database:", err);
+                }
+            }
+        }
+
+        async function loginUser() {
+            initAudio();
+            const usernameInput = document.getElementById("username-input").value.trim();
+            const passwordInput = document.getElementById("password-input").value.trim();
+
+            if (!usernameInput || !passwordInput) {
+                alert("Masukkan Username dan Kata Sandi!");
+                return;
+            }
+
+            const docRef = usernameInput.toLowerCase();
+
+            if (db) {
+                try {
+                    const doc = await db.collection("global_users").doc(docRef).get();
+                    if (!doc.exists) {
+                        alert("Akun tidak ditemukan! Silakan daftar terlebih dahulu.");
+                        return;
+                    }
+
+                    const data = doc.data();
+                    if (data.password && data.password !== passwordInput) {
+                        alert("Kata Sandi salah!");
+                        return;
+                    }
+
+                    currentUser = data.username;
+                    highScore = data.highScore || 0;
+                    userCoins = data.coins || 0;
+                    spinTickets = Math.max(0, Number(data.spinTickets) || 0);
+                    ownedSkins = data.ownedSkins || ["p_default", "t_default", "bg_default"];
+                    itemPurchaseCounts = data.itemPurchaseCounts || {};
+                    equippedPlayerSkin = data.pSkin || "p_default";
+                    equippedTargetSkin = data.tSkin || "t_default";
+                    equippedBgSkin = data.bgSkin || "bg_default";
+
+                    localStorage.setItem("active_global_user", currentUser);
+                    initUserSession();
+                } catch(e) {
+                    console.error("Gagal Login:", e);
+                    alert("Terjadi kesalahan saat login!");
+                }
+            }
+        }
+
+        async function registerUser() {
+            initAudio();
+            const usernameInput = document.getElementById("username-input").value.trim();
+            const passwordInput = document.getElementById("password-input").value.trim();
+
+            if (!usernameInput || !passwordInput) {
+                alert("Masukkan Username dan Kata Sandi!");
+                return;
+            }
+
+            const docRef = usernameInput.toLowerCase();
+
+            if (db) {
+                try {
+                    const doc = await db.collection("global_users").doc(docRef).get();
+                    if (doc.exists) {
+                        alert("Username sudah terdaftar! Silakan gunakan Username lain atau klik MASUK.");
+                        return;
+                    }
+
+                    const newData = {
+                        username: usernameInput,
+                        password: passwordInput,
+                        highScore: 0,
+                        coins: 0,
+                        spinTickets: 0,
+                        ownedSkins: ["p_default", "t_default", "bg_default"],
+                        itemPurchaseCounts: {},
+                        pSkin: "p_default",
+                        tSkin: "t_default",
+                        bgSkin: "bg_default"
+                    };
+
+                    await db.collection("global_users").doc(docRef).set(newData);
+                    alert("Akun baru berhasil terdaftar! Mengalihkan ke game...");
+
+                    currentUser = usernameInput;
+                    highScore = 0;
+                    userCoins = 0;
+                    spinTickets = 0;
+                    ownedSkins = ["p_default", "t_default", "bg_default"];
+                    itemPurchaseCounts = {};
+                    equippedPlayerSkin = "p_default";
+                    equippedTargetSkin = "t_default";
+                    equippedBgSkin = "bg_default";
+
+                    localStorage.setItem("active_global_user", currentUser);
+                    initUserSession();
+                } catch(e) {
+                    console.error("Gagal Mendaftar:", e);
+                    alert("Terjadi kesalahan saat pendaftaran akun!");
+                }
+            }
+        }
+
+        function logoutUser() {
+            localStorage.removeItem("active_global_user");
+            currentUser = null;
+            stopAllBgm();
+
+            document.getElementById("username-input").value = "";
+            document.getElementById("password-input").value = "";
+
+            userDisplayEl.innerText = "Pemain: Guest";
+            highscoreEl.innerText = "0";
+            coinsGameEl.innerText = "🪙 0";
+
+            accountMenu.classList.remove("hidden");
+            mainMenu.classList.add("hidden");
+        }
+
+        async function initUserSession() {
+            const savedUser = localStorage.getItem("active_global_user");
+            if (savedUser && !currentUser && db) {
+                try {
+                    const doc = await db.collection("global_users").doc(savedUser.toLowerCase()).get();
+                    if (doc.exists) {
+                        const data = doc.data();
+                        currentUser = data.username;
+                        highScore = data.highScore || 0;
+                        userCoins = data.coins || 0;
+                        spinTickets = Math.max(0, Number(data.spinTickets) || 0);
+                        ownedSkins = data.ownedSkins || ["p_default", "t_default", "bg_default"];
+                        itemPurchaseCounts = data.itemPurchaseCounts || {};
+                        equippedPlayerSkin = data.pSkin || "p_default";
+                        equippedTargetSkin = data.tSkin || "t_default";
+                        equippedBgSkin = data.bgSkin || "bg_default";
+                    }
+                } catch(e) {
+                    console.error("Gagal sinkron sesi pengguna:", e);
+                }
+            }
+
+            if (currentUser) {
+                userDisplayEl.innerText = "Pemain: " + currentUser;
+                highscoreEl.innerText = highScore;
+                applyEquippedSkins();
+                updateCoinDisplay();
+                updateSpinCoinDisplay();
+
+                accountMenu.classList.add("hidden");
+                mainMenu.classList.remove("hidden");
+            } else {
+                accountMenu.classList.remove("hidden");
+                mainMenu.classList.add("hidden");
+            }
+        }
+
+        function updateCoinDisplay() {
+            coinsDisplays.forEach(el => el.innerText = userCoins);
+            coinsGameEl.innerText = "🪙 " + userCoins;
+        }
+
+        function applyEquippedSkins() {
+            const pSkinObj = PLAYER_SKINS.find(s => s.id === equippedPlayerSkin);
+            if (pSkinObj && pSkinObj.color) player.color = pSkinObj.color;
+
+            const tSkinObj = TARGET_SKINS.concat(LIMITED_SKINS).find(s => s.id === equippedTargetSkin);
+            if (tSkinObj && tSkinObj.color) target.color = tSkinObj.color;
+        }
+
+        async function openLeaderboard() {
+            initAudio();
+            const tbody = document.getElementById("leaderboard-body");
+            tbody.innerHTML = `<tr><td colspan="3" style="text-align:center;">Memuat Data Global...</td></tr>`;
+
+            mainMenu.classList.add("hidden");
+            leaderboardMenu.classList.remove("hidden");
+
+            let globalData = [];
+
+            if (db) {
+                try {
+                    const snapshot = await db.collection("global_users")
+                        .orderBy("highScore", "desc")
+                        .limit(50)
+                        .get();
+
+                    snapshot.forEach(doc => {
+                        const d = doc.data();
+                        if (d.username) {
+                            globalData.push({ name: d.username, score: d.highScore || 0 });
+                        }
+                    });
+                } catch(e) {
+                    console.error("Gagal mengambil skor dari cloud:", e);
+                }
+            }
+
+            tbody.innerHTML = "";
+
+            if (globalData.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="3" style="text-align:center;">Belum Ada Skor Global</td></tr>`;
+            } else {
+                globalData.forEach((item, index) => {
+                    const tr = document.createElement("tr");
+                    tr.innerHTML = `
+                        <td>${index + 1}</td>
+                        <td style="color:${item.name === currentUser ? '#06d6a0' : '#fff'}; font-weight:${item.name === currentUser ? 'bold' : 'normal'};">
+                            ${item.name} ${item.name === currentUser ? '(Kamu)' : ''}
+                        </td>
+                        <td style="color:#ffd166; font-weight:bold;">${item.score}</td>
+                    `;
+                    tbody.appendChild(tr);
+                });
+            }
+        }
+
+        function closeLeaderboard() {
+            leaderboardMenu.classList.add("hidden");
+            mainMenu.classList.remove("hidden");
+        }
+
+        function openOnlineLobby() {
+            initAudio();
+            mainMenu.classList.add("hidden");
+            onlineMenu.classList.remove("hidden");
+            document.getElementById("online-info").innerText = "";
+        }
+
+        function closeOnlineLobby() {
+            onlineMenu.classList.add("hidden");
+            mainMenu.classList.remove("hidden");
+        }
+
+        function initPeer(callback) {
+            if (!peer || peer.destroyed) {
+                peer = new Peer({
+                    debug: 2,
+                    config: {
+                        'iceServers': [
+                            { urls: 'stun:stun.l.google.com:19302' },
+                            { urls: 'stun:stun1.l.google.com:19302' },
+                            { urls: 'stun:stun2.l.google.com:19302' }
+                        ]
+                    }
+                });
+
+                peer.on('error', (err) => {
+                    console.error("PeerJS Error:", err);
+                    document.getElementById("online-info").innerText = "Gagal terhubung: " + (err.type === 'peer-unavailable' ? "Kode Room tidak ditemukan!" : err.message);
+                });
+            }
+
+            if (peer.open) {
+                if (callback) callback();
+            } else {
+                peer.once('open', () => {
+                    if (callback) callback();
+                });
+            }
+        }
+
+        function createOnlineRoom() {
+            document.getElementById("online-info").innerText = "Membuat Room Server Global...";
+            document.getElementById("host-difficulty-box").classList.add("hidden");
+            document.getElementById("host-difficulty-select").value = "";
+            opponentConnected = false;
+            onlineMatchStarted = false;
+            onlineRewardAppliedForMatch = false;
+
+            initPeer(() => {
+                roomId = peer.id;
+                const shortCode = roomId.substring(0, 6).toUpperCase();
+                document.getElementById("online-info").innerHTML = `
+                    KODE SINGKAT: <b style="font-size:16px; color:#ffd166;">${shortCode}</b><br>
+                    <span style="font-size:11px; color:#8d99ae;">Salin ID Room lengkap ini untuk bergabung: ${roomId}</span><br>
+                    Menunggu lawan bergabung... Pilih difficulty setelah lawan terhubung.
+                `;
+                isHost = true;
+                document.getElementById("host-difficulty-box").classList.remove("hidden");
+
+                peer.on('connection', (connection) => {
+                    if (conn && conn.open) {
+                        connection.close();
+                        return;
+                    }
+                    conn = connection;
+                    opponentConnected = true;
+                    setupNetworkHandlers();
+                    document.getElementById("online-info").innerText = "Lawan terhubung! Host, pilih difficulty untuk memulai hitung mundur.";
+                });
+            });
+        }
+
+        function joinOnlineRoom() {
+            const inputCode = document.getElementById("room-code-input").value.trim();
+            if (!inputCode) {
+                alert("Masukkan ID Room lengkap yang ditampilkan oleh host!");
+                return;
+            }
+            document.getElementById("online-info").innerText = "Mencari Room " + inputCode + "...";
+            isHost = false;
+            opponentConnected = false;
+            onlineMatchStarted = false;
+            onlineRewardAppliedForMatch = false;
+            document.getElementById("host-difficulty-box").classList.add("hidden");
+
+            initPeer(() => {
+                // PeerJS membutuhkan ID peer lengkap, bukan enam karakter kode singkat.
+                conn = peer.connect(inputCode);
+                setupNetworkHandlers();
+            });
+        }
+
+        function hostChooseDifficulty() {
+            if (!isHost) return;
+            const selected = document.getElementById("host-difficulty-select").value;
+            if (!selected) return;
+            currentDifficulty = selected;
+            if (opponentConnected && conn && conn.open && !countdownActive && !onlineMatchStarted) {
+                beginOnlineCountdown();
+            } else if (!opponentConnected) {
+                document.getElementById("online-info").innerText = "Difficulty " + selected.toUpperCase() + " dipilih. Menunggu lawan bergabung...";
+            }
+        }
+
+        function beginOnlineCountdown() {
+            if (!isHost || !opponentConnected || countdownActive || onlineMatchStarted) return;
+            const selected = document.getElementById("host-difficulty-select").value;
+            if (!selected) {
+                document.getElementById("online-info").innerText = "Pilih difficulty terlebih dahulu sebelum pertandingan dimulai.";
+                return;
+            }
+            currentDifficulty = selected;
+            countdownActive = true;
+            document.getElementById("online-info").innerText = "Pertandingan dimulai dalam 3 detik...";
+            if (conn && conn.open) conn.send({ type: 'countdown', seconds: 3, difficulty: currentDifficulty });
+            showMatchCountdown(3, () => {
+                if (!conn || !conn.open) {
+                    countdownActive = false;
+                    document.getElementById("online-info").innerText = "Koneksi lawan terputus sebelum pertandingan dimulai.";
+                    return;
+                }
+                onlineMatchStarted = true;
+                countdownActive = false;
+                conn.send({ type: 'start', difficulty: currentDifficulty });
+                closeOnlineLobby();
+                startGame('online');
+            });
+        }
+
+        function showMatchCountdown(seconds, onComplete) {
+            const overlay = document.getElementById("match-countdown");
+            const number = document.getElementById("countdown-number");
+            const message = document.getElementById("countdown-message");
+            let remaining = seconds;
+            overlay.style.display = "flex";
+            message.textContent = "Pertandingan dimulai dalam...";
+            number.textContent = remaining;
+            if (pendingCountdownTimer) clearInterval(pendingCountdownTimer);
+            pendingCountdownTimer = setInterval(() => {
+                remaining -= 1;
+                if (remaining > 0) {
+                    number.textContent = remaining;
+                } else {
+                    clearInterval(pendingCountdownTimer);
+                    pendingCountdownTimer = null;
+                    overlay.style.display = "none";
+                    if (onComplete) onComplete();
+                }
+            }, 1000);
+        }
+
+        function setupNetworkHandlers() {
+            if (!conn) return;
+
+            conn.on('open', () => {
+                if (!isHost) {
+                    document.getElementById("online-info").innerText = "Terhubung ke host. Menunggu host memilih difficulty...";
+                } else {
+                    const selectedDifficulty = document.getElementById("host-difficulty-select").value;
+                    if (selectedDifficulty && opponentConnected && !countdownActive && !onlineMatchStarted) {
+                        beginOnlineCountdown();
+                    }
+                }
+            });
+
+            conn.on('data', (data) => {
+                if (data.type === 'state') {
+                    opponentData.x = data.x * canvas.width;
+                    opponentData.score = Number(data.score) || 0;
+                    opponentData.name = data.name || "Lawan";
+                    const opponentScoreEl = document.getElementById("opponent-score");
+                    if (opponentScoreEl) opponentScoreEl.textContent = opponentData.score;
+                    if (!isHost && data.target) {
+                        target.x = data.target.x * canvas.width;
+                        target.y = data.target.y * canvas.height;
+                    }
+                } else if (data.type === 'countdown') {
+                    if (!isHost && !onlineMatchStarted && !countdownActive) {
+                        currentDifficulty = data.difficulty || "normal";
+                        countdownActive = true;
+                        document.getElementById("online-info").innerText = "Host memilih " + currentDifficulty.toUpperCase() + ". Pertandingan dimulai...";
+                        showMatchCountdown(data.seconds || 3, () => {
+                            // Client menunggu pesan start resmi dari host agar kedua game sinkron.
+                            document.getElementById("online-info").innerText = "Menunggu host memulai pertandingan...";
+                        });
+                    }
+                } else if (data.type === 'start') {
+                    currentDifficulty = data.difficulty || currentDifficulty || "normal";
+                    onlineMatchStarted = true;
+                    countdownActive = false;
+                    if (pendingCountdownTimer) clearInterval(pendingCountdownTimer);
+                    pendingCountdownTimer = null;
+                    document.getElementById("match-countdown").style.display = "none";
+                    closeOnlineLobby();
+                    startGame('online');
+                } else if (data.type === 'finalscore') {
+                    if (typeof data.score === 'number') opponentData.score = data.score;
+                    const opponentScoreEl = document.getElementById("opponent-score");
+                    if (opponentScoreEl) opponentScoreEl.textContent = opponentData.score;
+                } else if (data.type === 'gameover') {
+                    if (typeof data.score === 'number') opponentData.score = data.score;
+                    const opponentScoreEl = document.getElementById("opponent-score");
+                    if (opponentScoreEl) opponentScoreEl.textContent = opponentData.score;
+                    if (conn && conn.open) conn.send({ type: 'finalscore', score: score, name: currentUser || "Pemain" });
+                    handleGameOver(true);
+                }
+            });
+
+            conn.on('close', () => {
+                if (pendingCountdownTimer) clearInterval(pendingCountdownTimer);
+                pendingCountdownTimer = null;
+                countdownActive = false;
+                document.getElementById("match-countdown").style.display = "none";
+                alert("Koneksi dengan lawan terputus!");
+                if (isPlaying) handleGameOver(true);
+            });
+
+            conn.on('error', (err) => {
+                console.error("Connection Error:", err);
+                document.getElementById("online-info").innerText = "Gagal menghubungkan ke lawan.";
+            });
+        }
+
+        function sendNetworkState() {
+            if (conn && conn.open) {
+                const payload = {
+                    type: 'state',
+                    x: player.x / canvas.width,
+                    score: score,
+                    name: currentUser || "Pemain 1"
+                };
+                if (isHost) {
+                    payload.target = {
+                        x: target.x / canvas.width,
+                        y: target.y / canvas.height
+                    };
+                }
+                conn.send(payload);
+            }
+        }
+
+        let spinInProgress = false;
+
+        function openSpin() {
+            initAudio();
+            mainMenu.classList.add("hidden");
+            document.getElementById("spin-menu").classList.remove("hidden");
+            updateSpinCoinDisplay();
+            document.getElementById("spin-result").textContent = "Putar dan dapatkan hadiah!";
+        }
+
+        function closeSpin() {
+            if (spinInProgress) return;
+            document.getElementById("spin-menu").classList.add("hidden");
+            mainMenu.classList.remove("hidden");
+        }
+
+        function updateSpinCoinDisplay() {
+            document.getElementById("spin-coins").textContent = userCoins;
+            document.getElementById("spin-tickets").textContent = spinTickets;
+            const shopTicketCount = document.getElementById("shop-spin-tickets");
+            if (shopTicketCount) shopTicketCount.textContent = spinTickets;
+            updateCoinDisplay();
+        }
+
+        async function buySpinTicket() {
+            if (!currentUser) {
+                alert("Silakan masuk atau daftar akun terlebih dahulu agar tiket tersimpan.");
+                return;
+            }
+            if (userCoins < 125) {
+                alert("Koin tidak cukup! Kamu perlu 125 koin untuk membeli 1 tiket spin.");
+                return;
+            }
+            userCoins -= 125;
+            spinTickets += 1;
+            updateSpinCoinDisplay();
+            await saveUserDataGlobal();
+            const result = document.getElementById("spin-result");
+            if (result && !document.getElementById("spin-menu").classList.contains("hidden")) result.textContent = "🎟️ Berhasil membeli 1 tiket spin!";
+            alert("Berhasil membeli 1 Tiket Spin!");
+        }
+
+        function spinReward() {
+            if (spinInProgress) return;
+            if (!currentUser) {
+                alert("Silakan masuk atau daftar akun terlebih dahulu agar koin dan hadiah tersimpan.");
+                return;
+            }
+            if (spinTickets < 1) {
+                document.getElementById("spin-result").textContent = "Tiket habis! Beli tiket di Toko Skin seharga 125 koin.";
+                return;
+            }
+
+            spinInProgress = true;
+            const button = document.getElementById("spin-button");
+            const wheel = document.getElementById("spin-wheel");
+            const resultEl = document.getElementById("spin-result");
+            button.disabled = true;
+            spinTickets -= 1;
+            updateSpinCoinDisplay();
+            wheel.classList.remove("spinning");
+            wheel.style.transform = "rotate(0deg)";
+            void wheel.offsetWidth;
+            resultEl.textContent = "Roda berputar...";
+
+            // Peluang skin petir masing-masing 3%; total skin 6%.
+            // Sisa 94% dibagi ke hadiah koin dengan rasio lama 80:60:30.
+            // 20 koin=44,2353%, 50 koin=33,1765%, 100 koin=16,5882%.
+            // Skin kuning=3%, skin biru=3% (total 100%).
+            const roll = Math.random() * 100;
+            let reward;
+            let segmentIndex;
+            if (roll < 44.235294) {
+                reward = { kind: "coins", amount: 20, label: "🪙 Kamu mendapatkan 20 koin!" };
+                segmentIndex = 0;
+            } else if (roll < 77.411765) {
+                reward = { kind: "coins", amount: 50, label: "🪙 Kamu mendapatkan 50 koin!" };
+                segmentIndex = 1;
+            } else if (roll < 94) {
+                reward = { kind: "coins", amount: 100, label: "💰 JACKPOT! Kamu mendapatkan 100 koin!" };
+                segmentIndex = 2;
+            } else if (roll < 97) {
+                reward = { kind: "skin", id: "t_lightning_yellow", label: "⚡ SELAMAT! Skin Petir Kuning berhasil didapat!" };
+                segmentIndex = 3;
+            } else {
+                reward = { kind: "skin", id: "t_lightning_blue", label: "💙 SELAMAT! Skin Petir Biru berhasil didapat!" };
+                segmentIndex = 4;
+            }
+
+            // Setiap segmen roda memiliki ukuran visual sama (20%), terlepas dari peluang hadiah sebenarnya.
+            // Urutan segmen pada roda: 20 koin, 50 koin, 100 koin, Petir Kuning, Petir Biru.
+            const prizeAngle = segmentIndex * 72 + 36;
+            const targetRotation = 1440 + ((360 - prizeAngle) % 360);
+            wheel.style.setProperty("--spin-target", targetRotation + "deg");
+            wheel.classList.add("spinning");
+
+            window.setTimeout(async () => {
+                if (reward.kind === "coins") {
+                    userCoins += reward.amount;
+                    resultEl.textContent = reward.label;
+                } else if (!ownedSkins.includes(reward.id)) {
+                    ownedSkins.push(reward.id);
+                    resultEl.textContent = reward.label + " Hadiah sudah masuk ke koleksi skin kamu.";
+                } else {
+                    // Hadiah skin duplikat ditukar menjadi 100 koin agar spin tetap memberi hadiah.
+                    userCoins += 100;
+                    resultEl.textContent = reward.label + " Skin sudah dimiliki, jadi kamu mendapat kompensasi 100 koin!";
+                }
+                updateSpinCoinDisplay();
+                await saveUserDataGlobal();
+                if (!document.getElementById("shop-menu").classList.contains("hidden")) renderShop();
+                spinInProgress = false;
+                button.disabled = false;
+                wheel.classList.remove("spinning");
+            }, 3550);
+        }
+
+        function openShop() {
+            initAudio();
+            renderShop();
+            updateSpinCoinDisplay();
+            mainMenu.classList.add("hidden");
+            shopMenu.classList.remove("hidden");
+        }
+
+        function closeShop() {
+            shopMenu.classList.add("hidden");
+            mainMenu.classList.remove("hidden");
+        }
+
+        function createShopCard(skin, type, isOwned, isEquipped) {
+            const card = document.createElement("div");
+            card.className = `shop-card ${isEquipped ? 'active' : ''}`;
+            
+            const isTarget = type === 'target' || type === 'planet' || type === 'limited';
+            const previewClass = isTarget ? `skin-preview target-preview ${skin.classPreview}` : `skin-preview ${skin.classPreview}`;
+            const bgStyle = skin.color ? `style="background:${skin.color}"` : "";
+            const iconContent = skin.icon ? skin.icon : "";
+
+            const boughtCount = itemPurchaseCounts[skin.id] || 0;
+            const isMaxReached = skin.maxLimit && boughtCount >= skin.maxLimit;
+            
+            let limitInfo = "";
+            if (skin.maxLimit) {
+                limitInfo = `<div style="font-size:9px; color:#ffd166; margin-top:2px;">Terbeli: ${boughtCount}/${skin.maxLimit}</div>`;
+            }
+
+            let btnText = isEquipped ? 'DIPAKAI' : isOwned ? 'PAKAI' : '🪙 ' + skin.price;
+            let btnClass = `btn-buy ${isEquipped ? 'owned' : isOwned ? 'equip' : 'purchase'}`;
+            
+            if (isMaxReached && !isOwned) {
+                btnText = 'HABIS (LIMIT)';
+                btnClass = 'btn-buy disabled';
+            }
+
+            card.innerHTML = `
+                <div class="${previewClass}" ${bgStyle} id="preview-${skin.id}">${iconContent}</div>
+                <div class="shop-card-name">${skin.name}</div>
+                ${limitInfo}
+                <button class="${btnClass}" 
+                    onclick="handleSkinClick('${skin.id}', '${type}', ${skin.price})">
+                    ${btnText}
+                </button>
+            `;
+            return card;
+        }
+
+        function renderShop() {
+            updateCoinDisplay();
+            
+            const pGrid = document.getElementById("player-skins-grid");
+            const tGrid = document.getElementById("target-skins-grid");
+            const limitedGrid = document.getElementById("limited-skins-grid");
+            const planetGrid = document.getElementById("planet-skins-grid");
+            const bgGrid = document.getElementById("bg-skins-grid");
+
+            pGrid.innerHTML = "";
+            tGrid.innerHTML = "";
+            limitedGrid.innerHTML = "";
+            planetGrid.innerHTML = "";
+            bgGrid.innerHTML = "";
+
+            PLAYER_SKINS.forEach(skin => {
+                pGrid.appendChild(createShopCard(skin, 'player', ownedSkins.includes(skin.id), equippedPlayerSkin === skin.id));
+            });
+
+            TARGET_SKINS.filter(s => !s.type || !s.type.startsWith("planet_")).forEach(skin => {
+                tGrid.appendChild(createShopCard(skin, 'target', ownedSkins.includes(skin.id), equippedTargetSkin === skin.id));
+            });
+
+            LIMITED_SKINS.forEach(skin => {
+                limitedGrid.appendChild(createShopCard(skin, 'limited', ownedSkins.includes(skin.id), equippedTargetSkin === skin.id));
+            });
+
+            TARGET_SKINS.filter(s => s.type && s.type.startsWith("planet_")).forEach(skin => {
+                planetGrid.appendChild(createShopCard(skin, 'planet', ownedSkins.includes(skin.id), equippedTargetSkin === skin.id));
+            });
+
+            BACKGROUND_SKINS.forEach(skin => {
+                const isOwned = ownedSkins.includes(skin.id);
+                const isEquipped = equippedBgSkin === skin.id;
+                const card = document.createElement("div");
+                card.className = `shop-card ${isEquipped ? 'active' : ''}`;
+                card.innerHTML = `
+                    <div class="skin-preview bg-preview ${skin.classPreview}"></div>
+                    <div class="shop-card-name">${skin.name}</div>
+                    <button class="btn-buy ${isEquipped ? 'owned' : isOwned ? 'equip' : 'purchase'}" 
+                        onclick="handleSkinClick('${skin.id}', 'bg', ${skin.price})">
+                        ${isEquipped ? 'DIPAKAI' : isOwned ? 'PAKAI' : '🪙 ' + skin.price}
+                    </button>
+                `;
+                bgGrid.appendChild(card);
+            });
+
+            const previewSwEl = document.getElementById("preview-t_diamond_sword");
+            if (previewSwEl) {
+                previewSwEl.innerHTML = "";
+                const pCanvas = document.createElement("canvas");
+                pCanvas.width = 32;
+                pCanvas.height = 32;
+                const pCtx = pCanvas.getContext("2d");
+                pCtx.imageSmoothingEnabled = true;
+                drawRealisticSword(pCtx, 16, 16, 26);
+                previewSwEl.appendChild(pCanvas);
+            }
+        }
+
+        function handleSkinClick(skinId, type, price) {
+            const targetItem = TARGET_SKINS.concat(LIMITED_SKINS, PLAYER_SKINS, BACKGROUND_SKINS).find(s => s.id === skinId);
+            
+            if (ownedSkins.includes(skinId)) {
+                if (type === 'player') equippedPlayerSkin = skinId;
+                if (type === 'target' || type === 'planet' || type === 'limited') equippedTargetSkin = skinId;
+                if (type === 'bg') equippedBgSkin = skinId;
+            } else {
+                const currentCount = itemPurchaseCounts[skinId] || 0;
+                if (targetItem && targetItem.maxLimit && currentCount >= targetItem.maxLimit) {
+                    alert(`Batas pembelian untuk item ini telah mencapai batas maksimal (${targetItem.maxLimit})!`);
+                    return;
+                }
+
+                if (userCoins >= price) {
+                    userCoins -= price;
+                    itemPurchaseCounts[skinId] = currentCount + 1;
+                    
+                    ownedSkins.push(skinId);
+                    if (type === 'player') equippedPlayerSkin = skinId;
+                    if (type === 'target' || type === 'planet' || type === 'limited') equippedTargetSkin = skinId;
+                    if (type === 'bg') equippedBgSkin = skinId;
+                } else {
+                    alert("Koin tidak cukup!");
+                    return;
+                }
+            }
+
+            saveUserDataGlobal();
+            applyEquippedSkins();
+            renderShop();
+        }
+
+        function movePlayer(clientX) {
+            if (!isPlaying || gameOver) return;
+            player.x = clientX - player.width / 2;
+
+            if (player.x < 0) player.x = 0;
+            if (player.x + player.width > canvas.width) player.x = canvas.width - player.width;
+        }
+
+        canvas.addEventListener("touchmove", (e) => {
+            if (e.touches.length > 0) movePlayer(e.touches[0].clientX);
+            e.preventDefault();
+        }, { passive: false });
+
+        canvas.addEventListener("mousemove", (e) => movePlayer(e.clientX));
+
+        function resetTarget() {
+            target.x = Math.random() * (canvas.width - target.size - 200) + 100;
+            target.y = -target.size * 1.5;
+        }
+
+        function changeDifficulty() {
+            currentDifficulty = document.getElementById("difficulty-select").value;
+        }
+
+        function startGame(mode = 'solo') {
+            initAudio();
+            if (animFrameId) cancelAnimationFrame(animFrameId);
+
+            isOnlineMode = (mode === 'online');
+            onlineStatusEl.innerText = isOnlineMode ? "Mode: Online Global" : "Mode: Solo Global";
+            document.getElementById("opponent-score-row").style.display = isOnlineMode ? "block" : "none";
+            if (isOnlineMode) {
+                document.getElementById("opponent-score").textContent = opponentData.score || 0;
+                onlineRewardAppliedForMatch = false;
+            }
+
+            mainMenu.classList.add("hidden");
+            settingsMenu.classList.add("hidden");
+            shopMenu.classList.add("hidden");
+            onlineMenu.classList.add("hidden");
+            
+            score = 0;
+            sessionCoinsEarned = 0;
+            scoreEl.innerText = score;
+            if (isOnlineMode) {
+                opponentData.score = 0;
+                document.getElementById("opponent-score").textContent = "0";
+            }
+            
+            player.x = canvas.width / 2 - player.width / 2;
+            player.y = canvas.height - 40;
+            
+            const diffConfig = DIFFICULTY_SETTINGS[currentDifficulty] || DIFFICULTY_SETTINGS["normal"];
+            target.speed = diffConfig.initialSpeed;
+
+            if (!isOnlineMode || isHost) {
+                resetTarget();
+            }
+            
+            gameOver = false;
+            isPlaying = true;
+
+            gameLoop();
+        }
+
+        function openSettings() {
+            initAudio();
+            mainMenu.classList.add("hidden");
+            settingsMenu.classList.remove("hidden");
+        }
+
+        function closeSettings() {
+            settingsMenu.classList.add("hidden");
+            mainMenu.classList.remove("hidden");
+        }
+
+        function handleGameOver(fromOpponent = false) {
+            if (gameOver) return;
+            gameOver = true;
+            isPlaying = false;
+            if (pendingCountdownTimer) clearInterval(pendingCountdownTimer);
+            pendingCountdownTimer = null;
+            document.getElementById("match-countdown").style.display = "none";
+
+            playGameOverSound();
+
+            if (score > highScore) {
+                highScore = score;
+                highscoreEl.innerText = highScore;
+            }
+
+            if (isOnlineMode && !onlineRewardAppliedForMatch) {
+                // Beri waktu singkat agar skor akhir kedua pemain tersinkron sebelum bonus ditentukan.
+                window.setTimeout(() => {
+                    if (onlineRewardAppliedForMatch) return;
+                    onlineRewardAppliedForMatch = true;
+                    let bonus = 30;
+                    let resultText = "Kalah kali ini. Bonus partisipasi: +30 koin";
+                    if (score > opponentData.score) {
+                        bonus = 200;
+                        resultText = "MENANG! Bonus: +200 koin";
+                    } else if (score === opponentData.score) {
+                        bonus = 200;
+                        resultText = "Skor seri! Bonus: +200 koin";
+                    }
+                    userCoins += bonus;
+                    sessionCoinsEarned += bonus;
+                    onlineStatusEl.innerText = resultText;
+                    updateCoinDisplay();
+                    saveUserDataGlobal();
+                    draw();
+                }, 600);
+            }
+
+            saveUserDataGlobal();
+
+            if (isOnlineMode && !fromOpponent && conn && conn.open) {
+                conn.send({ type: 'gameover', score: score, name: currentUser || "Pemain" });
+            }
+
+            draw();
+
+            setTimeout(() => {
+                updateCoinDisplay();
+                mainMenu.classList.remove("hidden");
+            }, 1800);
+        }
+
+        function update() {
+            if (gameOver || !isPlaying) return;
+
+            if (!isOnlineMode || isHost) {
+                target.y += target.speed;
+            }
+
+            swordNeonAnimTime += 0.2;
+            rainbowTime += 0.05;
+
+            const hitX = (target.x + target.size >= player.x) && (target.x <= player.x + player.width);
+            const hitY = (target.y + target.size >= player.y) && (target.y <= player.y + player.height);
+
+            if (hitX && hitY) {
+                playCatchSound();
+
+                const diffConfig = DIFFICULTY_SETTINGS[currentDifficulty] || DIFFICULTY_SETTINGS["normal"];
+
+                score += 10;
+                userCoins += diffConfig.coinReward;
+                sessionCoinsEarned += diffConfig.coinReward;
+
+                scoreEl.innerText = score;
+                updateCoinDisplay();
+
+                target.speed += diffConfig.speedInc;
+
+                if (score > highScore) {
+                    highScore = score;
+                    highscoreEl.innerText = highScore;
+                }
+
+                if (!isOnlineMode || isHost) {
+                    resetTarget();
+                }
+            }
+
+            if (target.y > canvas.height && (!isOnlineMode || isHost)) {
+                handleGameOver();
+            }
+
+            if (isOnlineMode) {
+                sendNetworkState();
+            }
+        }
+
+        function drawBlueWhale(ctx, x, y, dir) {
+            ctx.save();
+            ctx.translate(x, y);
+            if (dir < 0) ctx.scale(-1, 1);
+
+            ctx.fillStyle = "#005f73";
+            ctx.beginPath();
+            ctx.ellipse(0, 0, 100, 30, 0, 0, Math.PI * 2);
+            ctx.fill();
+
+            ctx.beginPath();
+            ctx.moveTo(-90, 0);
+            ctx.lineTo(-120, -18);
+            ctx.lineTo(-110, 0);
+            ctx.lineTo(-120, 18);
+            ctx.closePath();
+            ctx.fill();
+
+            ctx.beginPath();
+            ctx.arc(60, 5, 2, 0, Math.PI * 2);
+            ctx.fillStyle = "#fff";
+            ctx.fill();
+
+            ctx.restore();
+        }
+
+        function drawOrca(ctx, x, y, dir) {
+            ctx.save();
+            ctx.translate(x, y);
+            if (dir < 0) ctx.scale(-1, 1);
+
+            ctx.fillStyle = "#111111";
+            ctx.beginPath();
+            ctx.ellipse(0, 0, 60, 22, 0, 0, Math.PI * 2);
+            ctx.fill();
+
+            ctx.fillStyle = "#ffffff";
+            ctx.beginPath();
+            ctx.ellipse(-10, 8, 35, 10, 0, 0, Math.PI * 2);
+            ctx.fill();
+
+            ctx.fillStyle = "#ffffff";
+            ctx.beginPath();
+            ctx.ellipse(30, -5, 8, 4, Math.PI / 4, 0, Math.PI * 2);
+            ctx.fill();
+
+            ctx.fillStyle = "#111111";
+            ctx.beginPath();
+            ctx.moveTo(5, -20);
+            ctx.lineTo(-10, -45);
+            ctx.lineTo(-18, -18);
+            ctx.closePath();
+            ctx.fill();
+
+            ctx.restore();
+        }
+
+        function drawShark(ctx, x, y, dir) {
+            ctx.save();
+            ctx.translate(x, y);
+            if (dir < 0) ctx.scale(-1, 1);
+
+            ctx.fillStyle = "#5c677d";
+            ctx.beginPath();
+            ctx.ellipse(0, 0, 55, 18, 0, 0, Math.PI * 2);
+            ctx.fill();
+
+            ctx.beginPath();
+            ctx.moveTo(0, -16);
+            ctx.lineTo(-12, -35);
+            ctx.lineTo(-20, -14);
+            ctx.closePath();
+            ctx.fill();
+
+            ctx.beginPath();
+            ctx.moveTo(-50, 0);
+            ctx.lineTo(-70, -15);
+            ctx.lineTo(-62, 0);
+            ctx.lineTo(-70, 15);
+            ctx.closePath();
+            ctx.fill();
+
+            ctx.beginPath();
+            ctx.arc(35, -4, 2, 0, Math.PI * 2);
+            ctx.fillStyle = "#000";
+            ctx.fill();
+
+            ctx.restore();
+        }
+
+        function drawHouse(ctx, x, y, width, height, wallColor, roofColor) {
+            ctx.save();
+            ctx.fillStyle = wallColor;
+            ctx.fillRect(x, y - height, width, height);
+
+            ctx.fillStyle = roofColor;
+            ctx.beginPath();
+            ctx.moveTo(x - 6, y - height);
+            ctx.lineTo(x + width / 2, y - height - 25);
+            ctx.lineTo(x + width + 6, y - height);
+            ctx.closePath();
+            ctx.fill();
+
+            ctx.fillStyle = "#3d2314";
+            ctx.fillRect(x + width / 2 - 8, y - 22, 16, 22);
+
+            ctx.fillStyle = "#ffd166";
+            ctx.fillRect(x + 8, y - height + 12, 12, 12);
+            ctx.fillRect(x + width - 20, y - height + 12, 12, 12);
+
+            ctx.restore();
+        }
+
+        function drawCar(ctx, x, y, color, dir) {
+            ctx.save();
+            ctx.translate(x, y);
+            if (dir < 0) ctx.scale(-1, 1);
+
+            ctx.fillStyle = color;
+            ctx.beginPath();
+            ctx.roundRect(-25, -12, 50, 16, 4);
+            ctx.fill();
+
+            ctx.beginPath();
+            ctx.roundRect(-12, -22, 26, 12, 3);
+            ctx.fill();
+
+            ctx.fillStyle = "#a8dadc";
+            ctx.fillRect(-8, -20, 9, 8);
+            ctx.fillRect(3, -20, 8, 8);
+
+            ctx.fillStyle = "#111";
+            ctx.beginPath();
+            ctx.arc(-14, 4, 6, 0, Math.PI * 2);
+            ctx.arc(14, 4, 6, 0, Math.PI * 2);
+            ctx.fill();
+
+            ctx.fillStyle = "#ccc";
+            ctx.beginPath();
+            ctx.arc(-14, 4, 2.5, 0, Math.PI * 2);
+            ctx.arc(14, 4, 2.5, 0, Math.PI * 2);
+            ctx.fill();
+
+            ctx.fillStyle = "#ffea00";
+            ctx.fillRect(21, -8, 4, 4);
+
+            ctx.restore();
+        }
+
+        function drawForestTree(ctx, x, groundY, scale, leafColor, trunkColor) {
+            ctx.save();
+            ctx.translate(x, groundY);
+            ctx.scale(scale, scale);
+
+            // Batang pohon
+            ctx.fillStyle = trunkColor;
+            ctx.beginPath();
+            ctx.moveTo(-9, 0);
+            ctx.lineTo(-5, -105);
+            ctx.lineTo(5, -105);
+            ctx.lineTo(10, 0);
+            ctx.closePath();
+            ctx.fill();
+
+            // Detail batang
+            ctx.strokeStyle = "rgba(30, 20, 10, 0.35)";
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.moveTo(-2, -15);
+            ctx.lineTo(-1, -85);
+            ctx.stroke();
+
+            // Cabang pohon
+            ctx.strokeStyle = trunkColor;
+            ctx.lineWidth = 5;
+            ctx.beginPath();
+            ctx.moveTo(0, -60);
+            ctx.lineTo(-23, -83);
+            ctx.moveTo(2, -73);
+            ctx.lineTo(22, -95);
+            ctx.stroke();
+
+            // Dedaunan bertumpuk
+            ctx.fillStyle = leafColor;
+
+            const leaves = [
+                [0, -130, 30],
+                [-21, -108, 25],
+                [21, -108, 25],
+                [0, -88, 28],
+                [-12, -145, 21],
+                [13, -145, 22]
+            ];
+
+            leaves.forEach(([lx, ly, radius]) => {
+                ctx.beginPath();
+                ctx.arc(lx, ly, radius, 0, Math.PI * 2);
+                ctx.fill();
+            });
+
+            // Pantulan cahaya pada dedaunan
+            ctx.fillStyle = "rgba(130, 190, 75, 0.45)";
+            ctx.beginPath();
+            ctx.arc(-10, -139, 12, 0, Math.PI * 2);
+            ctx.arc(-28, -108, 9, 0, Math.PI * 2);
+            ctx.fill();
+
+            ctx.restore();
+        }
+
+        function drawForestBackground(ctx) {
+            const w = canvas.width;
+            const h = canvas.height;
+            const groundY = h * 0.83;
+
+            // Langit hutan
+            const sky = ctx.createLinearGradient(0, 0, 0, h);
+            sky.addColorStop(0, "#071d16");
+            sky.addColorStop(0.35, "#164e36");
+            sky.addColorStop(0.72, "#39734a");
+            sky.addColorStop(1, "#172e1c");
+
+            ctx.fillStyle = sky;
+            ctx.fillRect(0, 0, w, h);
+
+            // Cahaya matahari di antara pepohonan
+            const sunGlow = ctx.createRadialGradient(
+                w * 0.52, h * 0.25, 5,
+                w * 0.52, h * 0.25, h * 0.65
+            );
+
+            sunGlow.addColorStop(0, "rgba(255, 239, 160, 0.35)");
+            sunGlow.addColorStop(0.45, "rgba(190, 230, 140, 0.10)");
+            sunGlow.addColorStop(1, "rgba(100, 160, 100, 0)");
+
+            ctx.fillStyle = sunGlow;
+            ctx.fillRect(0, 0, w, h);
+
+            // Sinar matahari
+            ctx.save();
+            ctx.globalAlpha = 0.10;
+            ctx.fillStyle = "#e5ffbd";
+
+            for (let i = 0; i < 7; i++) {
+                const x = w * (0.25 + i * 0.09);
+
+                ctx.beginPath();
+                ctx.moveTo(x, 0);
+                ctx.lineTo(x + 25, 0);
+                ctx.lineTo(x + 150, groundY);
+                ctx.lineTo(x + 80, groundY);
+                ctx.closePath();
+                ctx.fill();
+            }
+
+            ctx.restore();
+
+            // Kabut di kejauhan
+            const fog = ctx.createLinearGradient(0, h * 0.25, 0, groundY);
+            fog.addColorStop(0, "rgba(200, 235, 190, 0)");
+            fog.addColorStop(0.65, "rgba(190, 225, 180, 0.15)");
+            fog.addColorStop(1, "rgba(190, 225, 180, 0)");
+
+            ctx.fillStyle = fog;
+            ctx.fillRect(0, 0, w, h);
+
+            // Siluet pepohonan jauh
+            const farTreeCount = Math.ceil(w / 55) + 2;
+
+            for (let i = 0; i < farTreeCount; i++) {
+                const x = i * 55 - 20;
+
+                ctx.fillStyle = i % 2 === 0 ? "#183d2b" : "#214b30";
+                ctx.beginPath();
+                ctx.moveTo(x - 40, groundY);
+                ctx.lineTo(x, h * 0.15 + (i % 3) * 18);
+                ctx.lineTo(x + 40, groundY);
+                ctx.closePath();
+                ctx.fill();
+            }
+
+            // Pohon-pohon besar di sisi hutan
+            const treeSpacing = 105;
+            const treeCount = Math.ceil(w / treeSpacing) + 2;
+
+            for (let i = 0; i < treeCount; i++) {
+                const x = i * treeSpacing - 35;
+
+                // Barisan belakang
+                drawForestTree(
+                    ctx,
+                    x + 35,
+                    groundY + 10,
+                    0.78,
+                    i % 2 === 0 ? "#24552e" : "#306638",
+                    "#493725"
+                );
+            }
+
+            // Lantai hutan
+            const floor = ctx.createLinearGradient(0, groundY - 10, 0, h);
+            floor.addColorStop(0, "#315b2b");
+            floor.addColorStop(0.4, "#244522");
+            floor.addColorStop(1, "#102817");
+
+            ctx.fillStyle = floor;
+            ctx.fillRect(0, groundY, w, h - groundY);
+
+            // Rumput dan semak
+            for (let i = 0; i < Math.ceil(w / 18); i++) {
+                const x = i * 18;
+                const grassHeight = 8 + (i % 4) * 4;
+
+                ctx.strokeStyle = i % 2 === 0 ? "#79a942" : "#477c32";
+                ctx.lineWidth = 2;
+                ctx.beginPath();
+                ctx.moveTo(x, h);
+                ctx.lineTo(x - 4, h - grassHeight);
+                ctx.moveTo(x + 4, h);
+                ctx.lineTo(x + 8, h - grassHeight - 3);
+                ctx.stroke();
+            }
+
+            // Semak-semak di bagian depan
+            for (let i = 0; i < Math.ceil(w / 70) + 1; i++) {
+                const x = i * 70;
+
+                ctx.fillStyle = i % 2 === 0 ? "#1b4626" : "#28582d";
+                ctx.beginPath();
+                ctx.arc(x, h - 5, 25, Math.PI, 0);
+                ctx.arc(x + 20, h - 5, 20, Math.PI, 0);
+                ctx.fill();
+            }
+
+            // Jamur kecil di lantai hutan
+            for (let i = 0; i < Math.ceil(w / 150); i++) {
+                const x = 35 + i * 150;
+                const y = groundY + 35 + (i % 3) * 18;
+
+                ctx.fillStyle = "#f3e9d2";
+                ctx.fillRect(x - 2, y, 4, 8);
+
+                ctx.fillStyle = i % 2 === 0 ? "#e63946" : "#ffb703";
+                ctx.beginPath();
+                ctx.arc(x, y, 7, Math.PI, 0);
+                ctx.fill();
+            }
+
+            // Lapisan gelap untuk kesan hutan yang dalam
+            const vignette = ctx.createRadialGradient(
+                w / 2, h / 2, h * 0.15,
+                w / 2, h / 2, Math.max(w, h) * 0.75
+            );
+
+            vignette.addColorStop(0, "rgba(0, 0, 0, 0)");
+            vignette.addColorStop(1, "rgba(0, 15, 5, 0.42)");
+
+            ctx.fillStyle = vignette;
+            ctx.fillRect(0, 0, w, h);
+        }
+
+        function renderBackground(ctx) {
+            const bgObj = BACKGROUND_SKINS.find(s => s.id === equippedBgSkin) || BACKGROUND_SKINS[0];
+            
+            if (bgObj.type === "galaxy") {
+                ctx.fillStyle = "#03071e";
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+                const centerX = canvas.width / 2;
+                const centerY = canvas.height / 2;
+
+                ctx.save();
+
+                ctx.beginPath();
+                ctx.arc(centerX, centerY, 22, 0, Math.PI * 2);
+                ctx.fillStyle = "#ffb703";
+                ctx.shadowColor = "#ffb703";
+                ctx.shadowBlur = 30;
+                ctx.fill();
+
+                solarSystemAngle += 0.005;
+
+                PLANETS_DATA.forEach(planet => {
+                    ctx.beginPath();
+                    ctx.arc(centerX, centerY, planet.radius, 0, Math.PI * 2);
+                    ctx.strokeStyle = "rgba(255, 255, 255, 0.08)";
+                    ctx.lineWidth = 1;
+                    ctx.shadowBlur = 0;
+                    ctx.stroke();
+
+                    const currentPlanetAngle = solarSystemAngle * (planet.speed * 100);
+                    const planetX = centerX + Math.cos(currentPlanetAngle) * planet.radius;
+                    const planetY = centerY + Math.sin(currentPlanetAngle) * planet.radius;
+
+                    if (planet.hasRing) {
+                        ctx.beginPath();
+                        ctx.ellipse(planetX, planetY, planet.size * 1.8, planet.size * 0.6, Math.PI / 4, 0, Math.PI * 2);
+                        ctx.strokeStyle = "rgba(253, 224, 71, 0.6)";
+                        ctx.lineWidth = 2;
+                        ctx.stroke();
+                    }
+
+                    ctx.beginPath();
+                    ctx.arc(planetX, planetY, planet.size, 0, Math.PI * 2);
+                    ctx.fillStyle = planet.color;
+                    ctx.shadowColor = planet.color;
+                    ctx.shadowBlur = 8;
+                    ctx.fill();
+                });
+
+                ctx.restore();
+            } else if (bgObj.type === "neraka") {
+                lavaOffset += 2;
+                fireTime += 0.08;
+
+                ctx.save();
+
+                const skyGrad = ctx.createLinearGradient(0, 0, 0, canvas.height);
+                skyGrad.addColorStop(0, "#200101");
+                skyGrad.addColorStop(0.5, "#6a040f");
+                skyGrad.addColorStop(1, "#dc2f02");
+                ctx.fillStyle = skyGrad;
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+                ctx.fillStyle = "#1a0000";
+                ctx.beginPath();
+                ctx.moveTo(0, canvas.height * 0.6);
+                ctx.lineTo(canvas.width * 0.25, canvas.height * 0.25);
+                ctx.lineTo(canvas.width * 0.45, canvas.height * 0.5);
+                ctx.lineTo(canvas.width * 0.7, canvas.height * 0.2);
+                ctx.lineTo(canvas.width, canvas.height * 0.55);
+                ctx.lineTo(canvas.width, canvas.height);
+                ctx.lineTo(0, canvas.height);
+                ctx.closePath();
+                ctx.fill();
+
+                const waterfalls = [
+                    { x: canvas.width * 0.25, topY: canvas.height * 0.25, width: 26 },
+                    { x: canvas.width * 0.7, topY: canvas.height * 0.2, width: 32 }
+                ];
+
+                waterfalls.forEach(wf => {
+                    const lavaGrad = ctx.createLinearGradient(wf.x, wf.topY, wf.x, canvas.height);
+                    lavaGrad.addColorStop(0, "#ffba08");
+                    lavaGrad.addColorStop(0.5, "#faa307");
+                    lavaGrad.addColorStop(1, "#d00000");
+
+                    ctx.fillStyle = lavaGrad;
+                    ctx.shadowColor = "#ff4800";
+                    ctx.shadowBlur = 15;
+                    ctx.fillRect(wf.x - wf.width / 2, wf.topY, wf.width, canvas.height - wf.topY);
+
+                    ctx.fillStyle = "#ffea00";
+                    for (let y = wf.topY + (lavaOffset % 30); y < canvas.height; y += 30) {
+                        ctx.beginPath();
+                        ctx.ellipse(wf.x, y, wf.width * 0.35, 4, 0, 0, Math.PI * 2);
+                        ctx.fill();
+                    }
+                });
+
+                const seaLavaGrad = ctx.createLinearGradient(0, canvas.height - 70, 0, canvas.height);
+                seaLavaGrad.addColorStop(0, "#ff4800");
+                seaLavaGrad.addColorStop(1, "#9d0208");
+                ctx.fillStyle = seaLavaGrad;
+                ctx.fillRect(0, canvas.height - 70, canvas.width, 70);
+
+                ctx.fillStyle = "#ffba08";
+                ctx.shadowColor = "#ffba08";
+                ctx.shadowBlur = 20;
+
+                const fireNum = Math.ceil(canvas.width / 20);
+                for (let i = 0; i <= fireNum; i++) {
+                    const fx = i * 20;
+                    const fy = canvas.height - 10;
+                    const h = Math.sin(fireTime + i * 0.5) * 22 + 28;
+
+                    ctx.beginPath();
+                    ctx.moveTo(fx - 12, fy);
+                    ctx.quadraticCurveTo(fx, fy - h, fx + 12, fy);
+                    ctx.fill();
+                }
+
+                ctx.restore();
+            } else if (bgObj.type === "laut") {
+                oceanTime += 0.03;
+
+                ctx.save();
+
+                const seaGrad = ctx.createLinearGradient(0, 0, 0, canvas.height);
+                seaGrad.addColorStop(0, "#0077b6");
+                seaGrad.addColorStop(0.5, "#03045e");
+                seaGrad.addColorStop(1, "#023e8a");
+                ctx.fillStyle = seaGrad;
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+                ctx.fillStyle = "rgba(255, 255, 255, 0.25)";
+                oceanBubbles.forEach(b => {
+                    b.y -= b.speed;
+                    b.x += Math.sin(oceanTime + b.y) * 0.5;
+                    if (b.y < -10) {
+                        b.y = canvas.height + 10;
+                        b.x = Math.random() * canvas.width;
+                    }
+                    ctx.beginPath();
+                    ctx.arc(b.x, b.y, b.size, 0, Math.PI * 2);
+                    ctx.fill();
+                });
+
+                smallFishList.forEach(fish => {
+                    fish.x += fish.speed;
+                    if (fish.x > canvas.width + 20) fish.x = -20;
+
+                    ctx.fillStyle = fish.color;
+                    ctx.beginPath();
+                    ctx.ellipse(fish.x, fish.y, fish.size, fish.size * 0.5, 0, 0, Math.PI * 2);
+                    ctx.fill();
+
+                    ctx.beginPath();
+                    ctx.moveTo(fish.x - fish.size, fish.y);
+                    ctx.lineTo(fish.x - fish.size - 6, fish.y - 4);
+                    ctx.lineTo(fish.x - fish.size - 6, fish.y + 4);
+                    ctx.closePath();
+                    ctx.fill();
+                });
+
+                const bw = oceanCreatures.blueWhale;
+                bw.y = canvas.height * 0.25 + Math.sin(oceanTime) * 15;
+                bw.x += bw.speed * bw.direction;
+                if (bw.x > canvas.width + 300) bw.x = -300;
+                drawBlueWhale(ctx, bw.x, bw.y, bw.direction);
+
+                const orca = oceanCreatures.orca;
+                orca.y = canvas.height * 0.5 + Math.sin(oceanTime * 1.5) * 20;
+                orca.x += orca.speed * orca.direction;
+                if (orca.x < -250) orca.x = canvas.width + 250;
+                drawOrca(ctx, orca.x, orca.y, orca.direction);
+
+                const shark = oceanCreatures.shark;
+                shark.y = canvas.height * 0.72 + Math.sin(oceanTime * 2) * 12;
+                shark.x += shark.speed * shark.direction;
+                if (shark.x > canvas.width + 200) shark.x = -200;
+                drawShark(ctx, shark.x, shark.y, shark.direction);
+
+                ctx.restore();
+            } else if (bgObj.type === "hutan") {
+                drawForestBackground(ctx);
+            } else if (bgObj.type === "perumahan") {
+                ctx.save();
+
+                const cityGrad = ctx.createLinearGradient(0, 0, 0, canvas.height);
+                cityGrad.addColorStop(0, "#f72585");
+                cityGrad.addColorStop(0.5, "#7209b7");
+                cityGrad.addColorStop(1, "#3a0ca3");
+                ctx.fillStyle = cityGrad;
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+                ctx.fillStyle = "#ffb703";
+                ctx.beginPath();
+                ctx.arc(canvas.width * 0.8, canvas.height * 0.35, 45, 0, Math.PI * 2);
+                ctx.fill();
+
+                const groundY = canvas.height * 0.65;
+                ctx.fillStyle = "#2b1e3a";
+                ctx.fillRect(0, groundY, canvas.width, canvas.height - groundY);
+
+                const houses = [
+                    { x: 30, w: 70, h: 50, wall: "#4895ef", roof: "#e63946" },
+                    { x: 120, w: 85, h: 60, wall: "#4cc9f0", roof: "#d90429" },
+                    { x: 220, w: 65, h: 45, wall: "#f72585", roof: "#3a0ca3" },
+                    { x: 300, w: 90, h: 65, wall: "#06d6a0", roof: "#ffb703" },
+                    { x: 410, w: 75, h: 55, wall: "#ffd166", roof: "#ef476f" },
+                    { x: 500, w: 80, h: 50, wall: "#118ab2", roof: "#e63946" },
+                    { x: 600, w: 70, h: 48, wall: "#e71d36", roof: "#2ec4b6" },
+                    { x: 690, w: 95, h: 62, wall: "#ff9f1c", roof: "#7209b7" },
+                ];
+
+                const houseRepeatCount = Math.ceil(canvas.width / 750) + 1;
+                for (let i = 0; i < houseRepeatCount; i++) {
+                    houses.forEach(h => {
+                        const posX = h.x + (i * 750);
+                        if (posX < canvas.width + 100) {
+                            drawHouse(ctx, posX, groundY, h.w, h.h, h.wall, h.roof);
+                        }
+                    });
+                }
+
+                const roadY = groundY + 15;
+                const roadHeight = 45;
+                ctx.fillStyle = "#1e1e24";
+                ctx.fillRect(0, roadY, canvas.width, roadHeight);
+
+                ctx.strokeStyle = "#ffffff";
+                ctx.lineWidth = 3;
+                ctx.setLineDash([20, 15]);
+                ctx.beginPath();
+                ctx.moveTo(0, roadY + roadHeight / 2);
+                ctx.lineTo(canvas.width, roadY + roadHeight / 2);
+                ctx.stroke();
+                ctx.setLineDash([]);
+
+                cityCars.forEach(car => {
+                    car.x += car.speed * car.dir;
+
+                    if (car.dir > 0 && car.x > canvas.width + 150) car.x = -150;
+                    if (car.dir < 0 && car.x < -150) car.x = canvas.width + 150;
+
+                    const carY = car.dir > 0 ? roadY + 14 : roadY + 32;
+                    drawCar(ctx, car.x, carY, car.color, car.dir);
+                });
+
+                ctx.restore();
+            } else {
+                ctx.fillStyle = "#2b2d42";
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+            }
+        }
+
+        // FUNGSI EFEK EKOR YANG JAUH LEBIH PANJANG
+        function drawStraightTrailAndParticles(ctx, x, y, size, color) {
+            ctx.save();
+            
+            const grad = ctx.createLinearGradient(x + size/2, y, x + size/2, y - 220);
+            grad.addColorStop(0, color);
+            grad.addColorStop(0.5, "rgba(76, 201, 240, 0.5)");
+            grad.addColorStop(1, "rgba(255, 255, 255, 0)");
+
+            ctx.strokeStyle = grad;
+            ctx.lineWidth = Math.max(3, size * 0.45);
+            ctx.lineCap = "round";
+            ctx.beginPath();
+            ctx.moveTo(x + size / 2, y);
+            ctx.lineTo(x + size / 2, y - 220);
+            ctx.stroke();
+
+            ctx.fillStyle = "#4cc9f0";
+            for (let i = 0; i < 8; i++) {
+                const py = y - Math.random() * 200;
+                const px = x + size / 2 + (Math.random() - 0.5) * 16;
+                const pSize = Math.random() * 3 + 1;
+                
+                ctx.globalAlpha = Math.random() * 0.8 + 0.2;
+                ctx.beginPath();
+                ctx.arc(px, py, pSize, 0, Math.PI * 2);
+                ctx.fill();
+            }
+
+            ctx.restore();
+        }
+
+        // PEDANG LIMITED EDITION: bilah baja berlapis, guard, gagang, dan efek energi ringan.
+        // Efek memakai sedikit partikel deterministik (tanpa Math.random per frame) agar ramah FPS.
+        function drawRealisticSword(ctx, x, y, size) {
+            ctx.save();
+            ctx.translate(x, y);
+            ctx.scale(1, -1); // dibalik vertikal: ujung bilah mengarah ke bawah, gagang berada di atas
+
+            const t = swordNeonAnimTime;
+            const glow = 7 + (Math.sin(t * 1.4) + 1) * 3;
+            const w = size / 26; // skala relatif agar bentuk konsisten pada target berbeda
+
+            // AURA API BIRU LIMITED EDITION: nyala berlapis mengalir ke ujung bilah.
+            // Path deterministik dan jumlah lapisan terbatas agar tetap ramah FPS.
+            ctx.save();
+            ctx.globalCompositeOperation = 'lighter';
+            const flamePulse = 0.88 + (Math.sin(t * 2.3) + 1) * 0.12;
+            const bladeBaseY = size * 0.12;
+            const bladeTipY = -size * 1.02;
+            // Halo biru sempit di belakang bilah
+            ctx.globalAlpha = 0.28 * flamePulse;
+            ctx.strokeStyle = '#008cff';
+            ctx.lineWidth = 13 * w;
+            ctx.lineCap = 'round';
+            ctx.shadowColor = '#087bff';
+            ctx.shadowBlur = 9 * w;
+            ctx.beginPath();
+            ctx.moveTo(0, bladeBaseY);
+            ctx.quadraticCurveTo(Math.sin(t * 2.1) * 2.5 * w, -size * 0.42, Math.sin(t * 1.7) * 1.8 * w, bladeTipY);
+            ctx.stroke();
+            // Lidah api cyan: bentuk tajam yang berkobar ke arah ujung pedang
+            ctx.globalAlpha = 0.76 * flamePulse;
+            ctx.fillStyle = '#087cff';
+            ctx.shadowColor = '#00aaff';
+            ctx.shadowBlur = 7 * w;
+            ctx.beginPath();
+            ctx.moveTo(-4.8*w, size*0.08);
+            ctx.quadraticCurveTo(-8*w, -size*0.20, -2.7*w, -size*0.43);
+            ctx.quadraticCurveTo(-5.2*w, -size*0.62, -1.0*w, -size*0.76);
+            ctx.lineTo(0, -size*1.05);
+            ctx.quadraticCurveTo(3.8*w, -size*0.76, 2.0*w, -size*0.58);
+            ctx.quadraticCurveTo(7*w, -size*0.36, 3.5*w, -size*0.15);
+            ctx.lineTo(4.8*w, size*0.08);
+            ctx.closePath();
+            ctx.fill();
+            // Inti api biru muda memberi kesan panas dan kedalaman
+            ctx.globalAlpha = 0.88;
+            ctx.fillStyle = '#63f5ff';
+            ctx.shadowColor = '#69f8ff';
+            ctx.shadowBlur = 4 * w;
+            ctx.beginPath();
+            ctx.moveTo(-2.1*w, size*0.02);
+            ctx.quadraticCurveTo(-2.8*w, -size*0.28, -0.6*w, -size*0.49);
+            ctx.lineTo(0.4*w, -size*0.88);
+            ctx.quadraticCurveTo(2.2*w, -size*0.54, 1.1*w, -size*0.35);
+            ctx.quadraticCurveTo(2.6*w, -size*0.16, 2.0*w, size*0.02);
+            ctx.closePath();
+            ctx.fill();
+            // Garis nyala bergerak: tiga helai tipis, tanpa partikel acak
+            ctx.globalAlpha = 0.72;
+            ctx.strokeStyle = '#d7ffff';
+            ctx.lineWidth = Math.max(0.7, 1.15*w);
+            ctx.shadowBlur = 2 * w;
+            for (let i = 0; i < 3; i++) {
+                const phase = t * 2.0 + i * 2.1;
+                const sy = -size * (0.24 + i * 0.19);
+                const sway = Math.sin(phase) * 2.1 * w;
+                ctx.beginPath();
+                ctx.moveTo(-1.2*w + sway, sy + size*0.11);
+                ctx.quadraticCurveTo(1.4*w - sway, sy, sway * 0.35, sy - size*0.14);
+                ctx.stroke();
+            }
+            ctx.restore();
+
+            // Aura tipis di sepanjang bilah, bukan bola cahaya besar
+            ctx.globalAlpha = 0.18;
+            ctx.strokeStyle = '#00eaff';
+            ctx.lineWidth = 10 * w;
+            ctx.lineCap = 'round';
+            ctx.shadowColor = '#00eaff';
+            ctx.shadowBlur = glow;
+            ctx.beginPath();
+            ctx.moveTo(0, -size * 0.88);
+            ctx.lineTo(0, size * 0.15);
+            ctx.stroke();
+            ctx.globalAlpha = 1;
+            ctx.shadowBlur = 0;
+
+            // Bilah meruncing dengan bevel baja gelap dan permukaan perak
+            const blade = ctx.createLinearGradient(-7*w, 0, 7*w, 0);
+            blade.addColorStop(0, '#52677a');
+            blade.addColorStop(0.18, '#d7e6ee');
+            blade.addColorStop(0.43, '#ffffff');
+            blade.addColorStop(0.68, '#a8c5d5');
+            blade.addColorStop(1, '#34495e');
+            ctx.fillStyle = blade;
+            ctx.beginPath();
+            ctx.moveTo(0, -size * 0.98);
+            ctx.lineTo(5.6*w, -size * 0.28);
+            ctx.lineTo(4.1*w, size * 0.17);
+            ctx.lineTo(-4.1*w, size * 0.17);
+            ctx.lineTo(-5.6*w, -size * 0.28);
+            ctx.closePath();
+            ctx.fill();
+            ctx.strokeStyle = 'rgba(235,252,255,0.9)';
+            ctx.lineWidth = Math.max(0.7, 0.8*w);
+            ctx.stroke();
+
+            // Garis pantulan tajam dan alur tengah
+            ctx.strokeStyle = 'rgba(255,255,255,0.95)';
+            ctx.lineWidth = Math.max(0.8, 1.15*w);
+            ctx.beginPath();
+            ctx.moveTo(-2.7*w, -size * 0.34);
+            ctx.lineTo(-1.2*w, -size * 0.79);
+            ctx.stroke();
+            ctx.strokeStyle = 'rgba(42,75,99,0.78)';
+            ctx.lineWidth = Math.max(0.65, 0.7*w);
+            ctx.beginPath();
+            ctx.moveTo(0, -size * 0.83);
+            ctx.lineTo(0, size * 0.12);
+            ctx.stroke();
+
+            // Crossguard logam dengan ujung sedikit melengkung
+            const guard = ctx.createLinearGradient(-18*w, 0, 18*w, 0);
+            guard.addColorStop(0, '#087b9b');
+            guard.addColorStop(0.24, '#b5f7ff');
+            guard.addColorStop(0.5, '#f5ffff');
+            guard.addColorStop(0.78, '#64d9ef');
+            guard.addColorStop(1, '#075b87');
+            ctx.fillStyle = guard;
+            ctx.beginPath();
+            ctx.moveTo(-17*w, size*0.15);
+            ctx.lineTo(-14*w, size*0.22);
+            ctx.lineTo(-5*w, size*0.18);
+            ctx.lineTo(5*w, size*0.18);
+            ctx.lineTo(14*w, size*0.22);
+            ctx.lineTo(17*w, size*0.15);
+            ctx.lineTo(15*w, size*0.12);
+            ctx.lineTo(-15*w, size*0.12);
+            ctx.closePath();
+            ctx.fill();
+            ctx.strokeStyle = 'rgba(255,255,255,0.8)';
+            ctx.lineWidth = Math.max(0.7, 0.8*w);
+            ctx.stroke();
+
+            // Gagang diperbesar agar proporsional dan mudah terlihat di layar HP.
+            const gripWidth = 10.5 * w;
+            const gripTop = size * 0.20;
+            const gripHeight = size * 0.31;
+            const grip = ctx.createLinearGradient(-gripWidth / 2, 0, gripWidth / 2, 0);
+            grip.addColorStop(0, '#101d32'); grip.addColorStop(0.22, '#29445e');
+            grip.addColorStop(0.5, '#496984'); grip.addColorStop(0.78, '#29445e');
+            grip.addColorStop(1, '#101d32');
+            ctx.fillStyle = grip;
+            ctx.fillRect(-gripWidth / 2, gripTop, gripWidth, gripHeight);
+            // Pinggiran gagang dan lilitan diagonal yang lebih jelas
+            ctx.strokeStyle = '#8af4ff';
+            ctx.lineWidth = Math.max(0.9, 1.25*w);
+            ctx.strokeRect(-gripWidth / 2, gripTop, gripWidth, gripHeight);
+            ctx.strokeStyle = '#66eaff';
+            ctx.lineWidth = Math.max(0.8, 1.15*w);
+            for (let i = 0; i < 5; i++) {
+                const gy = gripTop + size*0.025 + i*size*0.052;
+                ctx.beginPath(); ctx.moveTo(-gripWidth*0.43, gy);
+                ctx.lineTo(gripWidth*0.43, gy + size*0.045); ctx.stroke();
+            }
+            // Cincin logam di pangkal dan pommel permata yang lebih besar
+            const ring = ctx.createLinearGradient(-6*w, 0, 6*w, 0);
+            ring.addColorStop(0, '#087b9b'); ring.addColorStop(0.5, '#e8ffff'); ring.addColorStop(1, '#087b9b');
+            ctx.fillStyle = ring;
+            ctx.fillRect(-6*w, gripTop + gripHeight - size*0.015, 12*w, size*0.035);
+            ctx.fillStyle = '#b9fbff';
+            ctx.shadowColor = '#00eaff'; ctx.shadowBlur = glow * 0.6;
+            ctx.beginPath();
+            ctx.moveTo(0, size*0.59); ctx.lineTo(6*w, size*0.52);
+            ctx.lineTo(4*w, size*0.47); ctx.lineTo(-4*w, size*0.47);
+            ctx.lineTo(-6*w, size*0.52); ctx.closePath(); ctx.fill();
+            ctx.shadowBlur = 0;
+
+            // Hanya tiga kilatan kecil di dekat bilah; posisi matematis, tanpa alokasi partikel
+            ctx.fillStyle = '#d8ffff';
+            for (let i = 0; i < 3; i++) {
+                const phase = t * 1.7 + i * 2.094;
+                const py = -size * (0.12 + i * 0.22) + Math.sin(phase) * size * 0.035;
+                const px = Math.cos(phase) * size * 0.12;
+                const r = Math.max(0.7, size * 0.012);
+                ctx.globalAlpha = 0.45 + (Math.sin(phase) + 1) * 0.25;
+                ctx.beginPath(); ctx.arc(px, py, r, 0, Math.PI*2); ctx.fill();
+            }
+            ctx.globalAlpha = 1;
+            ctx.restore();
+        }
+
+        function drawRainbowGradient(ctx, x, y, width, height, time = 0) {
+            const gradient = ctx.createLinearGradient(
+                x - width * 0.8,
+                y,
+                x + width * 1.8,
+                y + height * 0.15
+            );
+
+            // Pergeseran hue membuat warna pelangi terus bergerak
+            const hueShift = (time * 3) % 360;
+
+            for (let i = 0; i <= 12; i++) {
+                const hue = (i * 30 + hueShift) % 360;
+                gradient.addColorStop(i / 12, `hsl(${hue}, 100%, 55%)`);
+            }
+
+            return gradient;
+        }
+
+        function drawRainbowPlayer(ctx, x, y, width, height) {
+            ctx.save();
+
+            // Cahaya pelangi
+            ctx.shadowColor = "#ff00ff";
+            ctx.shadowBlur = 16;
+
+            // Batang pemain dengan gradasi rainbow
+            ctx.fillStyle = drawRainbowGradient(
+                ctx, x, y, width, height, rainbowTime
+            );
+
+            ctx.beginPath();
+            ctx.roundRect(x, y, width, height, 6);
+            ctx.fill();
+
+            // Kilau putih di bagian atas
+            ctx.shadowBlur = 0;
+            const shine = ctx.createLinearGradient(x, y, x, y + height);
+            shine.addColorStop(0, "rgba(255,255,255,0.65)");
+            shine.addColorStop(1, "rgba(255,255,255,0)");
+
+            ctx.fillStyle = shine;
+            ctx.beginPath();
+            ctx.roundRect(x + 2, y + 2, width - 4, Math.max(2, height * 0.4), 3);
+            ctx.fill();
+
+            ctx.restore();
+        }
+
+        // Efek skin pemain ditingkatkan sedikit, tetap hemat performa.
+        function drawPlayerSkinEffect(ctx, x, y, w, h, skinId) {
+            const time = (typeof rainbowTime === "number" ? rainbowTime : 0) * 0.07;
+            const pulse = 0.5 + 0.5 * Math.sin(time * 2.2);
+            ctx.save();
+            ctx.globalCompositeOperation = "lighter";
+
+            // Bingkai aura tipis berdenyut, tanpa blur besar.
+            if (skinId === "p_fire_red" || skinId === "p_fire_blue") {
+                const color = skinId === "p_fire_red" ? "#ff4b18" : "#18bfff";
+                ctx.strokeStyle = color;
+                ctx.lineWidth = 1 + pulse * 0.7;
+                ctx.globalAlpha = 0.35 + pulse * 0.2;
+                ctx.strokeRect(x - 1, y - 1, w + 2, h + 2);
+                // Nyala api lebih tinggi, jumlah tetap sedikit.
+                for (let i = 0; i < 5; i++) {
+                    const px = x + w * (0.1 + i * 0.2);
+                    const flicker = 3 + Math.abs(Math.sin(time * 2.4 + i * 1.8)) * h * 0.23;
+                    const alpha = 0.5 + Math.abs(Math.sin(time + i)) * 0.35;
+                    ctx.fillStyle = color;
+                    ctx.globalAlpha = alpha;
+                    ctx.beginPath();
+                    ctx.moveTo(px - 3, y + 2);
+                    ctx.lineTo(px, y - flicker);
+                    ctx.lineTo(px + 3, y + 3);
+                    ctx.closePath(); ctx.fill();
+                    ctx.beginPath();
+                    ctx.moveTo(px - 3, y + h - 2);
+                    ctx.lineTo(px, y + h + flicker * 0.7);
+                    ctx.lineTo(px + 3, y + h - 2);
+                    ctx.closePath(); ctx.fill();
+                }
+                // Dua bara kecil bergerak di samping pemain.
+                ctx.globalAlpha = 0.75;
+                for (let i = 0; i < 2; i++) {
+                    const sy = y + h * (0.28 + i * 0.42) - Math.abs(Math.sin(time * 2 + i)) * 3;
+                    ctx.fillRect(x - 3, sy, 2, 2);
+                    ctx.fillRect(x + w + 1, sy + 2, 2, 2);
+                }
+            } else if (skinId === "p_love") {
+                ctx.globalAlpha = 0.9;
+                ctx.fillStyle = "#ff5caa";
+                ctx.font = `bold ${Math.max(10, Math.min(17, w * 0.58))}px sans-serif`;
+                ctx.textAlign = "center";
+                ctx.fillText("♥", x - 4, y + h * 0.25 + Math.sin(time * 2) * 3);
+                ctx.fillText("♥", x + w + 4, y + h * 0.72 - Math.sin(time * 2) * 3);
+                ctx.globalAlpha = 0.6 + pulse * 0.25;
+                ctx.strokeStyle = "#ff9acb";
+                ctx.lineWidth = 1;
+                ctx.strokeRect(x - 1, y - 1, w + 2, h + 2);
+                // Kilau kecil, bukan partikel yang terus bertambah.
+                ctx.fillStyle = "#fff0f7";
+                ctx.fillRect(x + w * 0.25, y - 2 - pulse * 2, 2, 2);
+                ctx.fillRect(x + w * 0.72, y + h + pulse * 2, 2, 2);
+            } else if (skinId === "p_electric") {
+                ctx.strokeStyle = "#55f6ff";
+                ctx.lineWidth = 1.4 + pulse * 0.5;
+                ctx.globalAlpha = 0.65 + pulse * 0.25;
+                ctx.strokeRect(x - 1, y - 1, w + 2, h + 2);
+                // Dua sambaran zigzag pendek di sisi kiri dan kanan.
+                for (let side = 0; side < 2; side++) {
+                    const sx = side === 0 ? x - 2 : x + w + 2;
+                    const dir = side === 0 ? -1 : 1;
+                    const offset = Math.sin(time * 3 + side * 2) * 2;
+                    ctx.beginPath();
+                    ctx.moveTo(sx, y + h * 0.18 + offset);
+                    ctx.lineTo(sx + dir * 4, y + h * 0.36);
+                    ctx.lineTo(sx - dir * 1, y + h * 0.52 + offset);
+                    ctx.lineTo(sx + dir * 4, y + h * 0.7);
+                    ctx.stroke();
+                }
+                ctx.fillStyle = "#ffffff";
+                ctx.globalAlpha = 0.7;
+                ctx.fillRect(x - 3, y + h * (0.2 + Math.abs(Math.sin(time)) * 0.5), 2, 2);
+                ctx.fillRect(x + w + 1, y + h * (0.7 - Math.abs(Math.cos(time)) * 0.4), 2, 2);
+            }
+            ctx.restore();
+        }
+
+        function drawRainbowTarget(ctx, x, y, size) {
+            ctx.save();
+
+            const cx = x + size / 2;
+            const cy = y + size / 2;
+            const radius = size / 2;
+
+            // Lingkaran objek rainbow
+            ctx.shadowColor = "#ff00ff";
+            ctx.shadowBlur = 20;
+
+            ctx.beginPath();
+            ctx.arc(cx, cy, radius, 0, Math.PI * 2);
+            ctx.clip();
+
+            ctx.fillStyle = drawRainbowGradient(
+                ctx, x, y, size, size, rainbowTime
+            );
+            ctx.fillRect(x, y, size, size);
+
+            // Pantulan cahaya
+            ctx.shadowBlur = 0;
+            const shine = ctx.createRadialGradient(
+                cx - radius * 0.35,
+                cy - radius * 0.4,
+                1,
+                cx,
+                cy,
+                radius * 1.2
+            );
+
+            shine.addColorStop(0, "rgba(255,255,255,0.75)");
+            shine.addColorStop(0.35, "rgba(255,255,255,0.12)");
+            shine.addColorStop(1, "rgba(0,0,0,0.2)");
+
+            ctx.fillStyle = shine;
+            ctx.fillRect(x, y, size, size);
+
+            ctx.restore();
+        }
+
+        // METEOR DENGAN EKOR API MENYALA
+        function drawMeteorTarget(ctx, x, y, size) {
+            ctx.save();
+
+            const cx = x + size / 2;
+            const cy = y + size / 2;
+            const t = rainbowTime * 0.06;
+
+            // Efek cahaya di sekitar meteor
+            ctx.shadowColor = "#ff4500";
+            ctx.shadowBlur = 22;
+
+            // Ekor api utama, mengarah ke atas karena meteor jatuh ke bawah
+            const flameLength = size * (1.5 + Math.sin(t * 2) * 0.12);
+
+            const flame = ctx.createLinearGradient(
+                cx, cy - size * 0.15,
+                cx, cy - flameLength
+            );
+
+            flame.addColorStop(0, "#fff7ad");
+            flame.addColorStop(0.25, "#ffb703");
+            flame.addColorStop(0.6, "#ff5e00");
+            flame.addColorStop(1, "rgba(220, 20, 0, 0)");
+
+            ctx.fillStyle = flame;
+            ctx.beginPath();
+            ctx.moveTo(cx - size * 0.20, cy - size * 0.15);
+            ctx.quadraticCurveTo(
+                cx - size * 0.48, cy - flameLength * 0.55,
+                cx + Math.sin(t) * size * 0.2, cy - flameLength
+            );
+            ctx.quadraticCurveTo(
+                cx + size * 0.38, cy - flameLength * 0.55,
+                cx + size * 0.20, cy - size * 0.15
+            );
+            ctx.closePath();
+            ctx.fill();
+
+            // Lidah api tambahan di kiri
+            ctx.fillStyle = "#ff6a00";
+            ctx.beginPath();
+            ctx.moveTo(cx - size * 0.12, cy - size * 0.15);
+            ctx.quadraticCurveTo(
+                cx - size * 0.55,
+                cy - flameLength * 0.5 + Math.sin(t * 1.5) * 5,
+                cx - size * 0.28,
+                cy - flameLength * 0.82
+            );
+            ctx.quadraticCurveTo(
+                cx - size * 0.24, cy - size * 0.5,
+                cx - size * 0.12, cy - size * 0.15
+            );
+            ctx.closePath();
+            ctx.fill();
+
+            // Inti api berwarna kuning
+            ctx.shadowBlur = 8;
+            ctx.fillStyle = "#fff3a3";
+            ctx.beginPath();
+            ctx.moveTo(cx - size * 0.08, cy - size * 0.1);
+            ctx.quadraticCurveTo(
+                cx - size * 0.15, cy - flameLength * 0.45,
+                cx + Math.sin(t * 2) * size * 0.08,
+                cy - flameLength * 0.72
+            );
+            ctx.quadraticCurveTo(
+                cx + size * 0.18, cy - flameLength * 0.35,
+                cx + size * 0.08, cy - size * 0.1
+            );
+            ctx.closePath();
+            ctx.fill();
+
+            // Putaran batu meteor agar tampak dinamis
+            ctx.translate(cx, cy);
+            ctx.rotate(Math.sin(t) * 0.12);
+
+            // Bentuk batu tidak beraturan
+            const r = size * 0.39;
+
+            const rockGradient = ctx.createLinearGradient(
+                -r, -r, r, r
+            );
+            rockGradient.addColorStop(0, "#ffd1a1");
+            rockGradient.addColorStop(0.25, "#a85b32");
+            rockGradient.addColorStop(0.65, "#65382e");
+            rockGradient.addColorStop(1, "#30242a");
+
+            ctx.shadowColor = "#ff4d00";
+            ctx.shadowBlur = 18;
+            ctx.fillStyle = rockGradient;
+
+            ctx.beginPath();
+            ctx.moveTo(-r * 0.85, -r * 0.15);
+            ctx.lineTo(-r * 0.65, -r * 0.78);
+            ctx.lineTo(-r * 0.08, -r);
+            ctx.lineTo(r * 0.48, -r * 0.78);
+            ctx.lineTo(r, -r * 0.18);
+            ctx.lineTo(r * 0.78, r * 0.52);
+            ctx.lineTo(r * 0.22, r);
+            ctx.lineTo(-r * 0.48, r * 0.78);
+            ctx.lineTo(-r, r * 0.35);
+            ctx.closePath();
+            ctx.fill();
+
+            // Tekstur retakan pada batu
+            ctx.shadowBlur = 0;
+            ctx.strokeStyle = "rgba(255, 190, 120, 0.7)";
+            ctx.lineWidth = Math.max(1, size * 0.035);
+            ctx.beginPath();
+            ctx.moveTo(-r * 0.55, -r * 0.35);
+            ctx.lineTo(-r * 0.12, -r * 0.05);
+            ctx.lineTo(-r * 0.25, r * 0.38);
+            ctx.moveTo(r * 0.15, -r * 0.62);
+            ctx.lineTo(r * 0.05, -r * 0.25);
+            ctx.lineTo(r * 0.5, r * 0.02);
+            ctx.stroke();
+
+            // Kawah-kawah kecil
+            const craters = [
+                [-r * 0.35, -r * 0.35, r * 0.16],
+                [r * 0.38, -r * 0.22, r * 0.13],
+                [r * 0.25, r * 0.43, r * 0.17]
+            ];
+
+            craters.forEach(([kx, ky, kr]) => {
+                ctx.fillStyle = "#38252a";
+                ctx.beginPath();
+                ctx.arc(kx, ky, kr, 0, Math.PI * 2);
+                ctx.fill();
+
+                ctx.strokeStyle = "rgba(255, 175, 105, 0.75)";
+                ctx.lineWidth = Math.max(1, size * 0.025);
+                ctx.beginPath();
+                ctx.arc(kx, ky, kr, Math.PI * 1.05, Math.PI * 1.85);
+                ctx.stroke();
+            });
+
+            ctx.restore();
+
+            // Percikan api kecil yang bergerak
+            ctx.save();
+            for (let i = 0; i < 5; i++) {
+                const phase = t * 2 + i * 1.7;
+                const px = cx + Math.sin(phase) * size * 0.48;
+                const py = cy - size * (0.35 + ((t * 0.5 + i * 0.23) % 1) * 1.1);
+                const particleSize = size * (0.035 + (i % 2) * 0.02);
+
+                ctx.globalAlpha = 0.5 + 0.5 * Math.abs(Math.sin(phase));
+                ctx.fillStyle = i % 2 === 0 ? "#fff3a3" : "#ff5e00";
+                ctx.beginPath();
+                ctx.arc(px, py, particleSize, 0, Math.PI * 2);
+                ctx.fill();
+            }
+            ctx.restore();
+        }
+
+        // Efek aura petir: kilatan bercabang mengelilingi target, tanpa ekor panjang.
+        function drawLightningAura(ctx, cx, cy, size, color, timeOffset = 0) {
+            const t = (typeof rainbowTime === "number" ? rainbowTime : 0) * 0.12 + timeOffset;
+            const r = size * 0.52;
+            ctx.save();
+            ctx.globalCompositeOperation = "lighter";
+
+            // Halo lembut di sekitar objek.
+            const halo = ctx.createRadialGradient(cx, cy, size * 0.08, cx, cy, size * 1.05);
+            halo.addColorStop(0, color + "66");
+            halo.addColorStop(0.55, color + "22");
+            halo.addColorStop(1, color + "00");
+            ctx.fillStyle = halo;
+            ctx.beginPath();
+            ctx.arc(cx, cy, size * 1.05, 0, Math.PI * 2);
+            ctx.fill();
+
+            // Empat busur petir ringan di sekeliling lingkaran agar lebih ramah untuk HP.
+            for (let arc = 0; arc < 4; arc++) {
+                const start = (Math.PI * 2 * arc / 4) + t * (arc % 2 ? -0.18 : 0.15);
+                const span = 0.42 + 0.10 * Math.sin(t * 1.7 + arc);
+                const points = [];
+                const count = 3;
+                for (let i = 0; i <= count; i++) {
+                    const a = start + span * (i / count);
+                    const wobble = i === 0 || i === count ? 0 : Math.sin(t * 2.8 + arc * 4.1 + i * 7.3) * size * 0.07;
+                    const rr = r + size * 0.16 + wobble;
+                    points.push([cx + Math.cos(a) * rr, cy + Math.sin(a) * rr]);
+                }
+                ctx.beginPath();
+                ctx.moveTo(points[0][0], points[0][1]);
+                for (let i = 1; i < points.length; i++) ctx.lineTo(points[i][0], points[i][1]);
+                ctx.strokeStyle = color;
+                ctx.lineWidth = Math.max(1.5, size * 0.055);
+                ctx.shadowColor = color;
+                ctx.shadowBlur = size * 0.10;
+                ctx.stroke();
+                ctx.strokeStyle = "rgba(255,255,255,0.95)";
+                ctx.lineWidth = Math.max(0.7, size * 0.018);
+                ctx.shadowBlur = 0;
+                ctx.stroke();
+            }
+
+            // Sedikit percikan listrik dekat objek (bukan trail), untuk mengurangi beban gambar.
+            for (let i = 0; i < 5; i++) {
+                const a = t * (i % 2 ? -0.7 : 0.8) + i * 2.399;
+                const rr = size * (0.58 + 0.25 * (0.5 + 0.5 * Math.sin(t * 2 + i * 1.9)));
+                const px = cx + Math.cos(a) * rr;
+                const py = cy + Math.sin(a) * rr;
+                ctx.globalAlpha = 0.45 + 0.55 * Math.abs(Math.sin(t * 3 + i));
+                ctx.fillStyle = i % 3 === 0 ? "#ffffff" : color;
+                ctx.shadowColor = color;
+                ctx.shadowBlur = 0;
+                ctx.beginPath();
+                ctx.arc(px, py, Math.max(1, size * (0.018 + (i % 3) * 0.008)), 0, Math.PI * 2);
+                ctx.fill();
+            }
+            ctx.restore();
+        }
+
+        // Efek target realistis dengan jumlah bentuk tetap agar hemat FPS.
+        function drawTargetSkinFX(ctx, type, x, y, size, color) {
+            const t = (typeof rainbowTime === "number" ? rainbowTime : 0) * 0.055;
+            const cx = x + size / 2;
+            const cy = y + size / 2;
+            const r = size * 0.43;
+            ctx.save();
+            ctx.globalCompositeOperation = "lighter";
+
+            if (type === "fire_red" || type === "fire_blue") {
+                const blue = type === "fire_blue";
+                const outer = blue ? "#148dff" : "#ff3218";
+                const inner = blue ? "#a7f5ff" : "#ffe28a";
+                // Aura sederhana + 7 lidah api yang berdenyut, tanpa filter blur mahal.
+                ctx.globalAlpha = 0.22;
+                ctx.fillStyle = outer;
+                ctx.beginPath(); ctx.arc(cx, cy, size * (0.48 + 0.025 * Math.sin(t * 2)), 0, Math.PI * 2); ctx.fill();
+                for (let i = 0; i < 7; i++) {
+                    const a = (Math.PI * 2 * i / 7) + t * 0.35;
+                    const flicker = 0.78 + 0.22 * Math.sin(t * 3 + i * 1.7);
+                    const bx = cx + Math.cos(a) * r * 0.76;
+                    const by = cy + Math.sin(a) * r * 0.76;
+                    const tipX = cx + Math.cos(a) * size * (0.60 + 0.10 * flicker);
+                    const tipY = cy + Math.sin(a) * size * (0.60 + 0.10 * flicker);
+                    const sideX = -Math.sin(a) * size * 0.10;
+                    const sideY = Math.cos(a) * size * 0.10;
+                    ctx.globalAlpha = 0.82;
+                    ctx.fillStyle = outer;
+                    ctx.beginPath(); ctx.moveTo(bx + sideX, by + sideY); ctx.quadraticCurveTo(bx + Math.cos(a) * size * 0.16, by + Math.sin(a) * size * 0.16, tipX, tipY); ctx.quadraticCurveTo(bx - Math.cos(a) * size * 0.02, by - Math.sin(a) * size * 0.02, bx - sideX, by - sideY); ctx.closePath(); ctx.fill();
+                    ctx.globalAlpha = 0.72;
+                    ctx.fillStyle = inner;
+                    ctx.beginPath(); ctx.moveTo(cx + Math.cos(a) * r * 0.80, cy + Math.sin(a) * r * 0.80); ctx.lineTo(cx + Math.cos(a) * size * 0.53, cy + Math.sin(a) * size * 0.53); ctx.lineTo(cx + Math.cos(a + 0.16) * r * 0.72, cy + Math.sin(a + 0.16) * r * 0.72); ctx.closePath(); ctx.fill();
+                }
+                // Hanya tiga bara kecil; tidak ada array partikel yang terus bertambah.
+                for (let i = 0; i < 3; i++) {
+                    const a = t * (i % 2 ? -0.7 : 0.8) + i * 2.1;
+                    const px = cx + Math.cos(a) * size * 0.55;
+                    const py = cy + Math.sin(a) * size * 0.55;
+                    ctx.globalAlpha = 0.65;
+                    ctx.fillStyle = inner;
+                    ctx.fillRect(px, py, Math.max(1.5, size * 0.035), Math.max(1.5, size * 0.035));
+                }
+            } else if (type === "love") {
+                // Hati kecil berputar di orbit pendek, dengan inti berkilau.
+                ctx.globalAlpha = 0.18;
+                ctx.fillStyle = "#ff4f9a";
+                ctx.beginPath(); ctx.arc(cx, cy, size * 0.48, 0, Math.PI * 2); ctx.fill();
+                for (let i = 0; i < 3; i++) {
+                    const a = t * 0.8 + i * (Math.PI * 2 / 3);
+                    const hx = cx + Math.cos(a) * size * 0.48;
+                    const hy = cy + Math.sin(a) * size * 0.48;
+                    const hs = size * (i === 0 ? 0.13 : 0.10);
+                    ctx.save(); ctx.translate(hx, hy); ctx.rotate(a + Math.PI / 2);
+                    ctx.globalAlpha = 0.9; ctx.fillStyle = i === 1 ? "#fff0f7" : "#ff5ca8";
+                    ctx.beginPath(); ctx.moveTo(0, hs * 0.42); ctx.bezierCurveTo(-hs * 1.1, -hs * 0.15, -hs * 0.65, -hs * 0.75, 0, -hs * 0.30); ctx.bezierCurveTo(hs * 0.65, -hs * 0.75, hs * 1.1, -hs * 0.15, 0, hs * 0.42); ctx.fill(); ctx.restore();
+                }
+                ctx.globalAlpha = 0.85; ctx.strokeStyle = "#ffd3e7"; ctx.lineWidth = Math.max(1, size * 0.025);
+                ctx.beginPath(); ctx.arc(cx, cy, size * (0.34 + 0.025 * Math.sin(t * 2)), 0, Math.PI * 2); ctx.stroke();
+            } else if (type === "electric") {
+                // Empat sambaran zigzag pendek + tiga titik percikan tetap.
+                ctx.globalAlpha = 0.20; ctx.fillStyle = "#35eaff";
+                ctx.beginPath(); ctx.arc(cx, cy, size * 0.49, 0, Math.PI * 2); ctx.fill();
+                for (let i = 0; i < 4; i++) {
+                    const a = t * (i % 2 ? -0.22 : 0.25) + i * Math.PI / 2;
+                    const ux = Math.cos(a), uy = Math.sin(a), px = -uy, py = ux;
+                    ctx.beginPath();
+                    ctx.moveTo(cx + ux * size * 0.36, cy + uy * size * 0.36);
+                    ctx.lineTo(cx + ux * size * 0.50 + px * size * 0.07, cy + uy * size * 0.50 + py * size * 0.07);
+                    ctx.lineTo(cx + ux * size * 0.43 - px * size * 0.04, cy + uy * size * 0.43 - py * size * 0.04);
+                    ctx.lineTo(cx + ux * size * 0.63, cy + uy * size * 0.63);
+                    ctx.strokeStyle = "#55f6ff"; ctx.lineWidth = Math.max(1.2, size * 0.045); ctx.globalAlpha = 0.9; ctx.stroke();
+                    ctx.strokeStyle = "#ffffff"; ctx.lineWidth = Math.max(0.7, size * 0.014); ctx.globalAlpha = 0.85; ctx.stroke();
+                }
+                for (let i = 0; i < 3; i++) {
+                    const a = -t + i * 2.094;
+                    ctx.globalAlpha = 0.8; ctx.fillStyle = "#ffffff";
+                    ctx.fillRect(cx + Math.cos(a) * size * 0.53, cy + Math.sin(a) * size * 0.53, Math.max(1.5, size * 0.03), Math.max(1.5, size * 0.03));
+                }
+            }
+            ctx.restore();
+        }
+
+        // Skin tata surya: planet utama bertekstur sederhana, orbit tipis, dan planet kecil bergerak.
+        // Semua posisi dihitung langsung; tidak ada partikel yang disimpan/ditambah sehingga tetap ringan.
+        function drawSolarSystemTarget(ctx, x, y, size, type) {
+            const cx = x + size / 2;
+            const cy = y + size / 2;
+            const t = (typeof rainbowTime === "number" ? rainbowTime : 0) * 0.035;
+            const palette = {
+                planet_mercury: ["#d6d3d1", "#78716c", "#44403c"],
+                planet_venus: ["#fff1a6", "#d99a35", "#8a4c17"],
+                planet_earth: ["#7dd3fc", "#2563eb", "#12336e"],
+                planet_mars: ["#fecaca", "#dc4335", "#701d19"],
+                planet_jupiter: ["#ffdfa8", "#c87943", "#713b2b"],
+                planet_saturn: ["#fff0b3", "#d6ad57", "#78522a"],
+                planet_uranus: ["#cffafe", "#43c5d7", "#176b89"],
+                planet_neptune: ["#93c5fd", "#2563eb", "#172554"]
+            };
+            const colors = palette[type] || palette.planet_earth;
+            // Ukuran visual planet mengikuti perbandingan diameter nyata, dipadatkan
+            // dengan akar kuadrat agar planet kecil tetap terlihat pada ukuran target game.
+            // Diameter relatif terhadap Bumi (Bumi = 1), berdasarkan nilai astronomi umum.
+            const realDiameterRatio = {
+                planet_mercury: 0.383,
+                planet_venus: 0.949,
+                planet_earth: 1.000,
+                planet_mars: 0.532,
+                planet_jupiter: 11.21,
+                planet_saturn: 9.45,
+                planet_uranus: 4.01,
+                planet_neptune: 3.88
+            };
+            const sizeFactor = Math.pow(realDiameterRatio[type] || 1, 0.5);
+            const orbitR = size * 0.39;
+            ctx.save();
+            // Cahaya matahari lembut di belakang sistem.
+            ctx.globalAlpha = 0.16;
+            ctx.fillStyle = "#ffd166";
+            ctx.beginPath(); ctx.arc(cx, cy, size * 0.48, 0, Math.PI * 2); ctx.fill();
+            // Tiga orbit elips tipis.
+            ctx.globalAlpha = 0.48;
+            ctx.strokeStyle = "#9bdcff";
+            ctx.lineWidth = Math.max(0.7, size * 0.012);
+            for (let i = 0; i < 3; i++) {
+                ctx.beginPath();
+                ctx.ellipse(cx, cy, orbitR * (0.62 + i * 0.22), orbitR * (0.30 + i * 0.18), -0.38 + i * 0.35, 0, Math.PI * 2);
+                ctx.stroke();
+            }
+            // Matahari kecil di pusat sistem.
+            const sun = ctx.createRadialGradient(cx - size * 0.035, cy - size * 0.04, 1, cx, cy, size * 0.105);
+            sun.addColorStop(0, "#fffbd1"); sun.addColorStop(0.55, "#ffc247"); sun.addColorStop(1, "#f97316");
+            ctx.globalAlpha = 1; ctx.fillStyle = sun;
+            ctx.beginPath(); ctx.arc(cx, cy, size * 0.105, 0, Math.PI * 2); ctx.fill();
+            // Planet utama dengan highlight 3D.
+            // Batas radius supaya Yupiter/Saturnus tetap muat di target dan tidak menutup orbit.
+            const pr = Math.min(size * 0.31, Math.max(size * 0.105, size * 0.145 * sizeFactor));
+            const pg = ctx.createRadialGradient(cx - pr * 0.42, cy - pr * 0.48, pr * 0.06, cx, cy, pr * 1.18);
+            pg.addColorStop(0, colors[0]); pg.addColorStop(0.52, colors[1]); pg.addColorStop(1, colors[2]);
+            ctx.fillStyle = pg;
+            ctx.beginPath(); ctx.arc(cx, cy, pr, 0, Math.PI * 2); ctx.fill();
+            // Garis atmosfer/band tipis untuk kesan permukaan planet.
+            ctx.save(); ctx.beginPath(); ctx.arc(cx, cy, pr * 0.98, 0, Math.PI * 2); ctx.clip();
+            ctx.globalAlpha = 0.23; ctx.strokeStyle = colors[0]; ctx.lineWidth = Math.max(1, size * 0.035);
+            for (let i = -1; i <= 1; i++) {
+                ctx.beginPath(); ctx.ellipse(cx, cy + i * pr * 0.35, pr * 0.9, pr * 0.22, -0.18, 0, Math.PI * 2); ctx.stroke();
+            }
+            ctx.restore();
+            // Cincin Saturnus.
+            if (type === "planet_saturn") {
+                ctx.save(); ctx.translate(cx, cy); ctx.rotate(-0.32);
+                ctx.strokeStyle = "rgba(255,231,164,0.95)"; ctx.lineWidth = Math.max(1.4, size * 0.045);
+                ctx.beginPath(); ctx.ellipse(0, 0, pr * 1.65, pr * 0.52, 0, 0, Math.PI * 2); ctx.stroke();
+                ctx.strokeStyle = "rgba(125,83,43,0.65)"; ctx.lineWidth = Math.max(0.8, size * 0.018);
+                ctx.beginPath(); ctx.ellipse(0, 0, pr * 1.38, pr * 0.40, 0, 0, Math.PI * 2); ctx.stroke(); ctx.restore();
+            }
+            // Empat planet mini mengorbit, dengan jumlah tetap untuk menjaga FPS.
+            const miniColors = ["#d7d2c8", "#49d9f2", "#e6a15b", "#648cff"];
+            for (let i = 0; i < 4; i++) {
+                const a = t * (0.75 + i * 0.13) + i * Math.PI / 2;
+                const rx = orbitR * (0.65 + (i % 2) * 0.28);
+                const ry = orbitR * (0.38 + (i % 2) * 0.24);
+                const px = cx + Math.cos(a) * rx;
+                const py = cy + Math.sin(a) * ry;
+                const miniRatio = [0.383, 1.0, 0.532, 3.88][i];
+                const rr = size * Math.min(0.055, Math.max(0.018, 0.022 * Math.sqrt(miniRatio)));
+                ctx.globalAlpha = 0.95; ctx.fillStyle = miniColors[i];
+                ctx.beginPath(); ctx.arc(px, py, rr, 0, Math.PI * 2); ctx.fill();
+                ctx.globalAlpha = 0.45; ctx.fillStyle = "#ffffff";
+                ctx.beginPath(); ctx.arc(px - rr * 0.3, py - rr * 0.3, rr * 0.32, 0, Math.PI * 2); ctx.fill();
+            }
+            ctx.restore();
+        }
+
+        function drawTarget(ctx) {
+            const tSkin = TARGET_SKINS.concat(LIMITED_SKINS).find(s => s.id === equippedTargetSkin);
+
+            ctx.save();
+
+            let baseColor = target.color;
+            if (tSkin && tSkin.color) baseColor = tSkin.color;
+
+            if (tSkin && tSkin.type === "rainbow") {
+                drawRainbowTarget(ctx, target.x, target.y, target.size);
+            } else if (tSkin && tSkin.type === "meteor") {
+                drawMeteorTarget(ctx, target.x, target.y, target.size);
+            } else if (tSkin && (
+                tSkin.type === "lightning_yellow" ||
+                tSkin.type === "lightning_blue"
+            )) {
+                const color = tSkin.type === "lightning_yellow" ? "#ffea00" : "#00f0ff";
+                const cx = target.x + target.size / 2;
+                const cy = target.y + target.size / 2;
+                drawLightningAura(ctx, cx, cy, target.size, color, tSkin.type === "lightning_yellow" ? 0 : 1.7);
+
+                // Bentuk skin petir saja: tanpa bola/lingkaran di tengah.
+                // Siluet zig-zag digambar langsung agar konsisten di berbagai font/perangkat.
+                const s = target.size;
+                ctx.save();
+                ctx.translate(cx, cy);
+                ctx.shadowColor = color;
+                ctx.shadowBlur = Math.max(2, s * 0.12);
+                ctx.fillStyle = color;
+                ctx.beginPath();
+                ctx.moveTo(s * 0.12, -s * 0.52);
+                ctx.lineTo(-s * 0.28, s * 0.02);
+                ctx.lineTo(-s * 0.04, s * 0.02);
+                ctx.lineTo(-s * 0.17, s * 0.48);
+                ctx.lineTo(s * 0.30, -s * 0.10);
+                ctx.lineTo(s * 0.06, -s * 0.10);
+                ctx.closePath();
+                ctx.fill();
+                ctx.shadowBlur = 0;
+                ctx.strokeStyle = "rgba(255,255,255,0.95)";
+                ctx.lineWidth = Math.max(1, s * 0.025);
+                ctx.stroke();
+                ctx.restore();
+            } else if (tSkin && (tSkin.type === "fire_red" || tSkin.type === "fire_blue" || tSkin.type === "love" || tSkin.type === "electric")) {
+                drawTargetSkinFX(ctx, tSkin.type, target.x, target.y, target.size, baseColor);
+                // Inti target memakai gradien sederhana; efek detail berada di sekelilingnya.
+                const cx = target.x + target.size / 2;
+                const cy = target.y + target.size / 2;
+                const radius = target.size * 0.34;
+                const core = ctx.createRadialGradient(cx - radius * 0.28, cy - radius * 0.32, radius * 0.08, cx, cy, radius);
+                if (tSkin.type === "fire_red") {
+                    core.addColorStop(0, "#fff5c2"); core.addColorStop(0.42, "#ff9b36"); core.addColorStop(1, "#d91d12");
+                } else if (tSkin.type === "fire_blue") {
+                    core.addColorStop(0, "#ffffff"); core.addColorStop(0.42, "#5deaff"); core.addColorStop(1, "#0756d8");
+                } else if (tSkin.type === "love") {
+                    core.addColorStop(0, "#fff7fb"); core.addColorStop(0.48, "#ff91c7"); core.addColorStop(1, "#e82e82");
+                } else {
+                    core.addColorStop(0, "#ffffff"); core.addColorStop(0.42, "#8effff"); core.addColorStop(1, "#008fc9");
+                }
+                ctx.fillStyle = core;
+                ctx.beginPath(); ctx.arc(cx, cy, radius, 0, Math.PI * 2); ctx.fill();
+                ctx.strokeStyle = "rgba(255,255,255,0.8)"; ctx.lineWidth = Math.max(1, target.size * 0.018); ctx.stroke();
+            } else if (tSkin && tSkin.type && tSkin.type.startsWith("planet_")) {
+                drawSolarSystemTarget(ctx, target.x, target.y, target.size, tSkin.type);
+            } else if (tSkin && tSkin.type === "diamond_sword") {
+                drawStraightTrailAndParticles(ctx, target.x, target.y, target.size, baseColor);
+                swordNeonAnimTime += 0.08;
+                drawRealisticSword(ctx, target.x + target.size / 2, target.y + target.size / 2, target.size * 1.1);
+            } else {
+                drawStraightTrailAndParticles(ctx, target.x, target.y, target.size, baseColor);
+                ctx.shadowColor = baseColor;
+                ctx.shadowBlur = 12;
+                ctx.fillStyle = baseColor;
+                ctx.beginPath();
+                ctx.arc(target.x + target.size / 2, target.y + target.size / 2, target.size / 2, 0, Math.PI * 2);
+                ctx.fill();
+            }
+
+            ctx.restore();
+        }
+
+        function draw() {
+            rainbowTime += 1;
+            renderBackground(ctx);
+
+            if (equippedPlayerSkin === "p_rainbow") {
+                drawRainbowPlayer(ctx, player.x, player.y, player.width, player.height);
+            } else {
+                const pSkin = PLAYER_SKINS.find(s => s.id === equippedPlayerSkin);
+                ctx.save();
+                if (pSkin && pSkin.type) {
+                    ctx.fillStyle = pSkin.type === "fire_red" ? "#ff512f" :
+                                    pSkin.type === "fire_blue" ? "#159eff" :
+                                    pSkin.type === "love" ? "#ff72b6" :
+                                    pSkin.type === "electric" ? "#45e9ff" : player.color;
+                } else {
+                    ctx.fillStyle = player.color;
+                }
+                ctx.fillRect(player.x, player.y, player.width, player.height);
+                ctx.restore();
+                drawPlayerSkinEffect(ctx, player.x, player.y, player.width, player.height, equippedPlayerSkin);
+            }
+
+            if (isOnlineMode) {
+                opponentPlayer.x = opponentData.x;
+                ctx.fillStyle = "rgba(239, 71, 111, 0.7)";
+                ctx.fillRect(opponentPlayer.x, opponentPlayer.y, opponentPlayer.width, opponentPlayer.height);
+                
+                ctx.fillStyle = "#fff";
+                ctx.font = "10px Arial";
+                ctx.fillText(opponentData.name + " (" + opponentData.score + ")", opponentPlayer.x, opponentPlayer.y - 5);
+            }
+
+            drawTarget(ctx);
+
+            if (gameOver) {
+                ctx.fillStyle = "rgba(0, 0, 0, 0.75)";
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+                ctx.fillStyle = "#ef476f";
+                ctx.font = "bold 32px Arial";
+                ctx.textAlign = "center";
+                ctx.fillText("GAME OVER", canvas.width / 2, canvas.height / 2 - 40);
+
+                ctx.fillStyle = "#fff";
+                ctx.font = "18px Arial";
+                ctx.fillText("Skor Anda: " + score, canvas.width / 2, canvas.height / 2 + 5);
+
+                ctx.fillStyle = "#ffb703";
+                ctx.fillText("Koin Didapat: + " + sessionCoinsEarned, canvas.width / 2, canvas.height / 2 + 35);
+            }
+        }
+
+        function gameLoop() {
+            if (isPlaying && !gameOver) {
+                update();
+                draw();
+                animFrameId = requestAnimationFrame(gameLoop);
+            }
+        }
+
+        initUserSession();
+        draw();
+    </script>
+
+<script>
+// Pengukur FPS mandiri dan ringan; memperbarui tampilan 2 kali per detik.
+(function () {
+    const panel = document.getElementById('fps-monitor');
+    if (!panel) return;
+    let frames = 0;
+    let lastTime = performance.now();
+    let fps = 0;
+    function measure(now) {
+        frames++;
+        const elapsed = now - lastTime;
+        if (elapsed >= 500) {
+            fps = Math.round((frames * 1000) / elapsed);
+            panel.textContent = 'FPS: ' + fps;
+            panel.classList.toggle('low', fps < 25);
+            panel.classList.toggle('medium', fps >= 25 && fps < 50);
+            frames = 0;
+            lastTime = now;
+        }
+        requestAnimationFrame(measure);
+    }
+    requestAnimationFrame(measure);
+})();
+</script>
+
+<!-- AUTO UPDATE: perlu hosting HTTPS dan version.json agar pemeriksaan versi berfungsi. -->
+<style>
+  #game-update-notice {
+    display: none;
+    position: fixed;
+    inset: 0;
+    z-index: 1000000;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+    background: rgba(0, 0, 0, .82);
+    font-family: 'Segoe UI', Tahoma, sans-serif;
+  }
+  #game-update-notice .update-card {
+    width: min(100%, 360px);
+    box-sizing: border-box;
+    padding: 24px;
+    text-align: center;
+    color: #fff;
+    background: #182235;
+    border: 2px solid #38bdf8;
+    border-radius: 18px;
+    box-shadow: 0 0 28px rgba(56, 189, 248, .24);
+  }
+  #game-update-notice .update-icon { font-size: 42px; }
+  #game-update-notice h2 { margin: 8px 0; color: #ffd166; }
+  #game-update-notice p { color: #e2e8f0; line-height: 1.5; }
+  #game-update-notice .update-version { font-size: 12px; color: #94a3b8; margin-top: 10px; }
+  #game-update-notice button {
+    display: block;
+    width: 100%;
+    padding: 13px 12px;
+    margin-top: 12px;
+    border: 0;
+    border-radius: 10px;
+    font-size: 15px;
+    font-weight: 700;
+    cursor: pointer;
+  }
+  #game-update-now { background: #22c55e; color: #052e16; }
+  #game-update-later { background: #334155; color: #fff; }
+</style>
+
+<div id="game-update-notice" role="dialog" aria-modal="true"
+     aria-labelledby="game-update-title" aria-describedby="game-update-description">
+  <div class="update-card">
+    <div class="update-icon" aria-hidden="true">🚀</div>
+    <h2 id="game-update-title">Update Tersedia!</h2>
+    <p id="game-update-description">Versi terbaru Tangkap Kotak sudah tersedia.</p>
+    <p id="game-update-version" class="update-version"></p>
+    <button id="game-update-now" type="button">Update Sekarang</button>
+    <button id="game-update-later" type="button">Nanti Saja</button>
+  </div>
+</div>
+
+<script>
+/*
+ * PENGATURAN AUTO UPDATE
+ * 1. Upload index.html dan version.json ke hosting HTTPS yang sama.
+ * 2. Ganti username/alamat di bawah dengan alamat hosting milikmu.
+ * 3. Setiap rilis, naikkan CURRENT_VERSION di file HTML ini dan version
+ *    di version.json. Pemain dengan versi lebih lama akan mendapat notifikasi.
+ *
+ * Saat dibuka sebagai file:// langsung dari HP, browser umumnya tidak bisa
+ * memeriksa manifest HTTPS dengan andal. Fitur ini ditujukan untuk game yang
+ * dibuka melalui hosting HTTPS.
+ */
+(function () {
+  const CURRENT_VERSION = "1.0.0";
+  const VERSION_URL = "https://username.github.io/tangkap-kotak/version.json";
+  const DEFAULT_GAME_URL = "https://username.github.io/tangkap-kotak/";
+
+  const notice = document.getElementById("game-update-notice");
+  const versionLabel = document.getElementById("game-update-version");
+  const updateNow = document.getElementById("game-update-now");
+  const updateLater = document.getElementById("game-update-later");
+
+  if (!notice || !versionLabel || !updateNow || !updateLater) return;
+
+  let newestGameUrl = DEFAULT_GAME_URL;
+  let newestVersion = "";
+
+  function compareVersions(a, b) {
+    const parse = value => String(value).split(".").map(part => {
+      const n = parseInt(part, 10);
+      return Number.isFinite(n) ? n : 0;
+    });
+    const av = parse(a), bv = parse(b);
+    const length = Math.max(av.length, bv.length);
+    for (let i = 0; i < length; i++) {
+      const x = av[i] || 0, y = bv[i] || 0;
+      if (x > y) return 1;
+      if (x < y) return -1;
+    }
+    return 0;
+  }
+
+  async function checkForUpdate() {
+    // Placeholder hosting sengaja tidak dipakai sampai pemilik menggantinya.
+    if (VERSION_URL.includes("username.github.io") ||
+        DEFAULT_GAME_URL.includes("username.github.io")) {
+      console.info("Auto update belum aktif: atur VERSION_URL dan DEFAULT_GAME_URL.");
+      return;
+    }
+
+    try {
+      const response = await fetch(VERSION_URL + (VERSION_URL.includes("?") ? "&" : "?") +
+        "check=" + Date.now(), { cache: "no-store" });
+      if (!response.ok) throw new Error("HTTP " + response.status);
+
+      const data = await response.json();
+      if (!data || !data.version || compareVersions(data.version, CURRENT_VERSION) <= 0) {
+        return;
+      }
+
+      newestVersion = String(data.version);
+      newestGameUrl = typeof data.url === "string" && data.url.trim()
+        ? data.url.trim()
+        : DEFAULT_GAME_URL;
+
+      versionLabel.textContent = "Versi sekarang: " + CURRENT_VERSION +
+        " · Versi terbaru: " + newestVersion;
+      notice.style.display = "flex";
+    } catch (error) {
+      // Jika offline atau manifest belum bisa diakses, game tetap bisa dimainkan.
+      console.info("Pemeriksaan update tidak tersedia:", error.message);
+    }
+  }
+
+  updateNow.addEventListener("click", function () {
+    if (!newestGameUrl) return;
+    try {
+      const destination = new URL(newestGameUrl, window.location.href);
+      destination.searchParams.set("v", newestVersion || Date.now().toString());
+      window.location.href = destination.href;
+    } catch (error) {
+      window.location.href = newestGameUrl;
+    }
+  });
+
+  updateLater.addEventListener("click", function () {
+    notice.style.display = "none";
+  });
+
+  checkForUpdate();
+  // Periksa lagi setiap 5 menit jika game dibiarkan terbuka.
+  window.setInterval(checkForUpdate, 5 * 60 * 1000);
+})();
+</script>
+
+</body>
+</html>
